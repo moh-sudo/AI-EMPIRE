@@ -308,6 +308,23 @@ This keeps continuity across sessions without losing context.
 
 **Next session's first task:** Resolve the Fixera/AI_EMPIRE merge conflict in the Phase 4 plan (this file still says to build `apps/fixera/` and connect the existing Fixera app), then start Phase 2 (Core Shared Services — Memory CRUD, Model/Prompt Registry, Notification Service).
 
+### 2026-07-22 — Phase 2 complete
+**Completed:**
+- `infrastructure/database/migrations/0002_phase2_core_services.sql` applied: `memory_knowledge`, `memory_experience`, `memory_identity` (all pgvector, 1536-dim), `model_registry` (seeded), `prompt_registry`, plus `match_memory_knowledge`/`match_memory_experience` RPCs for cosine-similarity search. RLS enabled on all.
+- `shared/memory/`: knowledge + experience CRUD with OpenAI embedding generation (`shared/memory/embeddings.py`), identity key-value CRUD. Verified end-to-end against live Supabase using stub zero-vectors (no real `OPENAI_API_KEY` yet, so similarity scores were NaN as expected — structure confirmed working, real similarity needs a real key).
+- `shared/models/registry.py`: model_registry CRUD.
+- `shared/prompts/loader.py`: Immutable Core (Boundaries) hash verification. Tested both paths live — valid load succeeds, a tampered Boundaries section is blocked and logs a Severity 2 `audit_vault` incident. Sample prompt at `shared/prompts/systems_reliability-monitor_v1.json`.
+- `shared/notifications/resend_client.py`: generic Resend sender, **no Fixera-specific templates** — explicitly deferred per user decision (Phase 2 spec originally called for "8 core Fixera email templates"; skipped until the Phase 4 Fixera/AI_EMPIRE relationship is resolved).
+- `shared/audit/incidents.py`: shared audit_vault logging helper (used by both the prompt loader and, going forward, other shared modules).
+
+**Current phase status:** Phase 2 — COMPLETE (generic scope only; Fixera email templates explicitly deferred).
+
+**Decisions/discoveries:**
+- The Fixera/AI_EMPIRE Phase 4 conflict resurfaced immediately in Phase 2's own spec (Fixera email templates) — this is not a Phase-4-only issue, watch for it recurring in later phases too.
+- Real embedding generation and Resend sending are untested against live external APIs — both `OPENAI_API_KEY` and `RESEND_API_KEY` are still placeholders in `.env`.
+
+**Next session's first task:** Resolve the Fixera/AI_EMPIRE relationship (recommend doing this before it blocks more work), then start Phase 3 (Governance Validation — Audit Agent v0.1). Also: get real `OPENAI_API_KEY`/`RESEND_API_KEY` values in `.env` to fully exercise Phase 2's embedding and email paths.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
