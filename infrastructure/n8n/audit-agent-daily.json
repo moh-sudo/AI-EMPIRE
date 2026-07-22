@@ -1,0 +1,67 @@
+{
+  "name": "audit-agent-daily",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 6 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "963301e7-bbf5-4f26-88f1-b47a701c3b0b",
+      "name": "Daily 06:00"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8001/run",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "90743d0c-ff05-4b22-80b3-620f9fc80651",
+      "name": "Run Audit Agent"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Daily 06:00": {
+      "main": [
+        [
+          {
+            "node": "Run Audit Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "a1d20347-dd24-4d41-ba0f-94ebda720204",
+  "meta": {
+    "instanceId": "2442c103091fc3db3a62ddff01333be403ece2b2cfb7e6ba914ccc82432a7656"
+  },
+  "nodeGroups": [],
+  "id": "R5voBrUzux5k2yJN",
+  "tags": []
+}
