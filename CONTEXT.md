@@ -287,6 +287,29 @@ This keeps continuity across sessions without losing context.
 
 ---
 
+## Session Log
+
+### 2026-07-22 — Phase 1 complete
+**Completed:**
+- Repo scaffolded fresh at `C:\moh-sudo` (the `moh-sudo` GitHub repo did not exist/was inaccessible; no prior local copy existed either — started clean). `apps/fixera/` intentionally NOT created — Fixera and AI_EMPIRE are kept as fully separate projects/repos/Supabase orgs per explicit user decision, which conflicts with this file's own Phase 4 plan to merge them. That conflict is unresolved and must be revisited before Phase 4.
+- New, separate Supabase project created (project ref `lkcfbmcjwmxxvtpjspgr`), NOT the Fixera project.
+- `infrastructure/database/migrations/0001_phase1_foundation.sql` applied: pgvector, `audit_vault`, `routing_logs`, `agent_registry`, `circuit_breakers` (seeded), `job_queue`, `platform_settings.compute_budgets`. RLS enabled on all 6 tables.
+- `apps/api_gateway/`: FastAPI Hybrid Router (`POST /api/v1/route`) built and verified end-to-end against the live Supabase project — 5-tier routing rules, Presidio PII scan (fail-closed), routing_logs + audit_vault (Severity 2 incident) logging all confirmed working with real requests.
+- `infrastructure/scripts/secret_scan.py` written and passing clean.
+- n8n installed locally via npm, connected to Supabase via the **Session pooler** (IPv4) — direct connection (`db.<ref>.supabase.co`) is IPv6-only and failed on this network. Test workflow (`infrastructure/n8n/test-supabase-connection.json`) verifies connectivity by reading `circuit_breakers`.
+- `.env` confirmed never committed (zero git history). Two stray plaintext copies of the Supabase service key found outside the repo (`OneDrive\Dokumente\.env.txt`, `.env.local2.txt`) and deleted.
+
+**Current phase status:** Phase 1 — COMPLETE. All 7 completion criteria verified.
+
+**Decisions/discoveries:**
+- Supabase org for this project should stay separate from Fixera's org (`fixera.services1@gmail.com's Org`) — used a different account/org.
+- routing_logs' required field "budget_impact" (per this file's Phase 1.2 spec) maps to the `cost_usd` column in the actual migration — see comment in `apps/api_gateway/supabase_client.py`.
+- RESTRICTED classification currently always routes local in the router (never cloud, even sanitized) — a conservative reading of "Cloud only if Presidio sanitization applied first" that was never explicitly exercised; revisit if RESTRICTED→cloud is actually needed later.
+
+**Next session's first task:** Resolve the Fixera/AI_EMPIRE merge conflict in the Phase 4 plan (this file still says to build `apps/fixera/` and connect the existing Fixera app), then start Phase 2 (Core Shared Services — Memory CRUD, Model/Prompt Registry, Notification Service).
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
