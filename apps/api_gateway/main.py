@@ -1,7 +1,10 @@
 import hashlib
 import time
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+
+load_dotenv()
 
 from .models import RouteRequest, RouteResponse
 from .presidio_client import scan_and_sanitize
