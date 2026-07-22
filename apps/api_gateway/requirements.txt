@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+pydantic
+supabase
+presidio-analyzer
+presidio-anonymizer
+spacy
+python-dotenv
