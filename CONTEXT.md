@@ -51,7 +51,6 @@ moh-sudo/
 │   └── standards/
 ├── apps/
 │   ├── api_gateway/        # FastAPI Hybrid Router
-│   ├── fixera/             # Existing Fixera codebase integration
 │   ├── admin/
 │   └── dashboard/
 ├── agents/
@@ -60,8 +59,7 @@ moh-sudo/
 │   ├── forex/
 │   ├── personal/
 │   ├── learning/
-│   ├── systems/
-│   └── fixera/
+│   └── systems/
 ├── shared/
 │   ├── memory/             # Knowledge/Experience/Identity CRUD
 │   ├── routing/            # Classification & model selection logic
@@ -114,7 +112,7 @@ Goal: Minimal Memory Engine before first agent.
 
 - Memory CRUD: memory_knowledge, memory_experience, memory_identity tables + vector embeddings
 - Model Registry table + Prompt Registry table with Immutable Core loading
-- Notification Service: Resend integration + 8 core Fixera email templates
+- Notification Service: Resend integration (generic templates only — AI_EMPIRE and Fixera are separate, unrelated projects; see "Fixera relationship" note below)
 
 ### PHASE 3 — Governance Validation
 Goal: First agent — Audit Agent v0.1
@@ -122,14 +120,8 @@ Goal: First agent — Audit Agent v0.1
 - n8n cron (daily 6:00 AM) → query routing_logs + agent_registry → anomaly check (>20% error rate, unclassified data in cloud logs) → Red/Amber/Green report → save to audit_vault → email Mohamed if Amber/Red
 - Test on MacBook Air M1 with Ollama (Llama 3 8B)
 
-### PHASE 4 — Fixera MVP
-Goal: Integrate existing codebase, close gaps.
-
-- Connect existing Fixera app to new Supabase project
-- Build sendCancellationConfirmation (currently missing — silent status flip)
-- Migrate services.js → Supabase services table (verify DB is actual runtime source)
-- Verify trg_wallet_gate trigger uses platform_settings.wallet_minimum (currently hardcoded 500 — fix this)
-- M-Pesa Daraja: DO NOT implement until company registration complete
+### PHASE 4 — REMOVED (2026-07-22)
+AI_EMPIRE and Fixera are permanently separate projects/repos/Supabase projects — see "Fixera Relationship" below. This phase originally planned to merge Fixera into this repo; that will not happen. Any Fixera bug fixes or features (sendCancellationConfirmation, the wallet_minimum trigger, services.js migration, etc.) are tracked and done directly in the Fixera repo (C:\fixera) as independent work, unrelated to this project's phase plan.
 
 ### PHASE 5 — Intelligence Divisions
 - Personal Division: Morning Executive Brief n8n workflow, Habit Tracker
@@ -245,15 +237,12 @@ ALTER TABLE agent_registry ENABLE ROW LEVEL SECURITY;
 - Audit Agent daily check: flag any routing_destination='cloud' where sanitization_status='none' and data contains PII patterns
 - Payment threshold is in approval_matrix table — not hardcoded anywhere
 
-### Fixera-specific (from production codebase audit)
-- `workers.can_receive_jobs` (not `is_available`) is the correct wallet gate field
-- `payments.status→'paid'` fires TWO DB triggers automatically — do not duplicate
-- Email channel: Resend only. Push (FCM) is wired but no-op. WhatsApp is human-only. SMS not integrated.
-- `services.js` (413-line hardcoded array) is the current runtime source for service catalog — NOT the DB table. Fix this in Phase 4.
-- `platform_settings.wallet_minimum` exists but trigger ignores it (hardcoded 500) — fix in Phase 4.
-- SLA hours hardcoded in TWO places — consolidate in Phase 4.
-- OTPs are client-side Math.random() 4-digit — fine for friction, not cryptographic.
-- M-Pesa: amounts always server-looked-up from payments row, never trusted from client — keep this pattern.
+---
+
+## Fixera Relationship (decided 2026-07-22)
+AI_EMPIRE (this repo, `moh-sudo`) and Fixera (`C:\fixera`) are **permanently separate projects**: separate GitHub repos, separate Supabase projects/orgs, separate codebases. AI_EMPIRE does not read, write, or depend on Fixera's code or database, and vice versa. This repo contains no Fixera-specific code, tables, prompts, or templates.
+
+Any Fixera work (bug fixes, features, the items formerly listed under "Phase 4 — Fixera MVP") is done directly in the Fixera repo as its own independent work, not as part of this phase plan. If AI_EMPIRE ever needs to observe Fixera (e.g. a future monitoring/audit integration), that would be a deliberate, minimal, explicitly-scoped decision made at that time — not assumed by default.
 
 ---
 
@@ -324,6 +313,16 @@ This keeps continuity across sessions without losing context.
 - Real embedding generation and Resend sending are untested against live external APIs — both `OPENAI_API_KEY` and `RESEND_API_KEY` are still placeholders in `.env`.
 
 **Next session's first task:** Resolve the Fixera/AI_EMPIRE relationship (recommend doing this before it blocks more work), then start Phase 3 (Governance Validation — Audit Agent v0.1). Also: get real `OPENAI_API_KEY`/`RESEND_API_KEY` values in `.env` to fully exercise Phase 2's embedding and email paths.
+
+### 2026-07-22 — Fixera relationship resolved
+**Completed:**
+- Decided and documented (see "Fixera Relationship" section above): AI_EMPIRE and Fixera are **permanently separate** — separate repos, separate Supabase projects, no code/data dependency either direction. Any Fixera bug fixes happen directly in `C:\fixera`, unrelated to this phase plan.
+- Edited this file to remove all Fixera-specific plan content that assumed a merge: `apps/fixera/` and `agents/fixera/` removed from Repository Structure; Phase 2's "8 core Fixera email templates" line generalized; Phase 4 ("Fixera MVP") replaced with a removal note; the "Fixera-specific (from production codebase audit)" governance subsection removed entirely.
+- Nothing in the actual codebase changed — no code ever referenced Fixera (confirmed before editing). This was a documentation-only correction to stop the plan from resurfacing a merge that isn't happening.
+
+**Current phase status:** No phase change — this was a planning correction, not implementation work. Phase 2 remains COMPLETE; Phase 3 not yet started.
+
+**Next session's first task:** Start Phase 3 (Governance Validation — Audit Agent v0.1). Also still pending: real `OPENAI_API_KEY`/`RESEND_API_KEY` values in `.env`.
 
 ---
 
