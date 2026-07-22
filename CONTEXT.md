@@ -51,7 +51,6 @@ moh-sudo/
 │   └── standards/
 ├── apps/
 │   ├── api_gateway/        # FastAPI Hybrid Router
-│   ├── fixera/             # Existing Fixera codebase integration
 │   ├── admin/
 │   └── dashboard/
 ├── agents/
@@ -61,7 +60,7 @@ moh-sudo/
 │   ├── personal/
 │   ├── learning/
 │   ├── systems/
-│   └── fixera/
+│   └── fixera/             # Fixera Division's 8 agents — AI_EMPIRE agents, NOT Fixera's app code (see "Fixera Relationship")
 ├── shared/
 │   ├── memory/             # Knowledge/Experience/Identity CRUD
 │   ├── routing/            # Classification & model selection logic
@@ -122,13 +121,12 @@ Goal: First agent — Audit Agent v0.1
 - n8n cron (daily 6:00 AM) → query routing_logs + agent_registry → anomaly check (>20% error rate, unclassified data in cloud logs) → Red/Amber/Green report → save to audit_vault → email Mohamed if Amber/Red
 - Test on MacBook Air M1 with Ollama (Llama 3 8B)
 
-### PHASE 4 — Fixera MVP
-Goal: Integrate existing codebase, close gaps.
+### PHASE 4 — Fixera Division Agents (revised 2026-07-23 — see "Fixera Relationship")
+Goal: Build Fixera Division's 8 agents as real AI_EMPIRE agents, connected to Fixera's own separate production database through a narrow, scoped, task-authorized connector — never a migration, never a shared table.
 
-- Connect existing Fixera app to new Supabase project
-- Build sendCancellationConfirmation (currently missing — silent status flip)
-- Migrate services.js → Supabase services table (verify DB is actual runtime source)
-- Verify trg_wallet_gate trigger uses platform_settings.wallet_minimum (currently hardcoded 500 — fix this)
+- Build the 8 Fixera Division agents (Service Delivery, Financial Ops, Trust & Safety, Platform Governance, Marketplace Intelligence, Customer Support, Partner Verification, Partner Support) in `agents/fixera/`, registered in `agent_registry`, prompts in `shared/prompts/fixera_{agent}_{version}.json`
+- Build the scoped Fixera data connector: each agent gets read (and, where the Approval Matrix's sub-threshold Auto-Process track allows, limited write — e.g. Financial Ops processing below-threshold transactions) access to only the specific Fixera tables/fields its task requires, per Law 6. Above-threshold or disputed actions still require Mohamed's approval per the Escalation Ladder — no agent gets blanket write access.
+- Fixera's own database schema/triggers are never edited by an AI_EMPIRE agent directly. Gaps found (sendCancellationConfirmation missing, `trg_wallet_gate` ignoring `platform_settings.wallet_minimum`, `services.js` hardcoding) are fixed as Fixera's own codebase work in `C:\fixera`, informed by what the Fixera agents/Audit division observe — not applied by AI_EMPIRE writing into Fixera's live schema.
 - M-Pesa Daraja: DO NOT implement until company registration complete
 
 ### PHASE 5 — Intelligence Divisions
@@ -257,6 +255,19 @@ ALTER TABLE agent_registry ENABLE ROW LEVEL SECURITY;
 
 ---
 
+## Fixera Relationship (decided 2026-07-23, corrected from two earlier reverted attempts)
+Fixera and AI_EMPIRE are **two permanently separate Supabase projects/databases**. Fixera's production database (bookings, payments, customers — real revenue, real customers) is **never migrated, merged, or shared as a table** with AI_EMPIRE's database. This overrides the Implementation Roadmap's original Phase 4.1 plan ("connect existing Fixera app to new Supabase project"), which was a full database migration — rejected as too risky to put live production data inside a system still being actively built.
+
+**But Fixera's 8 agents are real AI_EMPIRE agents**, not excluded from the system. They're built in `agents/fixera/`, registered in `agent_registry`, run through the Hybrid Router, and communicate with other divisions (Audit & Verification, RII, etc.) through the Master Orchestrator exactly as the governance document specifies — using AI_EMPIRE's own `routing_logs`/`audit_vault`/`agent_registry`.
+
+**How agents reach Fixera's actual data:** through a narrow, scoped connector (API calls to Fixera's backend, or a minimally-privileged Supabase credential Fixera issues specifically for this purpose) — never a raw shared table, never blanket access. Each agent's access is scoped to exactly what its task needs (Law 6), and higher-stakes actions (above-threshold payments, disputed transactions) still require Mohamed's approval per the Escalation Ladder regardless of what the connector technically permits.
+
+**Fixes to Fixera's own code/schema** (the `wallet_minimum` trigger bug, `services.js` migration, `sendCancellationConfirmation`) happen as independent work in `C:\fixera`, not as something an AI_EMPIRE agent writes into Fixera's live database. AI_EMPIRE's Audit division can surface the finding; Fixera's own repo is where it gets fixed.
+
+The "Fixera-specific (from production codebase audit)" notes above are kept (not deleted, unlike an earlier reverted attempt) because they're exactly what the Fixera agents built in Phase 4 will need to know when working with Fixera's data through the connector.
+
+---
+
 ## Conventions
 - All SQL migrations go in: infrastructure/database/migrations/
 - All n8n workflow exports go in: infrastructure/n8n/
@@ -324,6 +335,17 @@ This keeps continuity across sessions without losing context.
 - Real embedding generation and Resend sending are untested against live external APIs — both `OPENAI_API_KEY` and `RESEND_API_KEY` are still placeholders in `.env`.
 
 **Next session's first task:** Resolve the Fixera/AI_EMPIRE relationship (recommend doing this before it blocks more work), then start Phase 3 (Governance Validation — Audit Agent v0.1). Also: get real `OPENAI_API_KEY`/`RESEND_API_KEY` values in `.env` to fully exercise Phase 2's embedding and email paths.
+
+### 2026-07-23 — Fixera relationship resolved (after two reverted attempts)
+**What happened:** Two earlier attempts at this got it wrong and were reverted. Attempt 1 deleted Fixera from CONTEXT.md entirely (no relationship at all) — wrong, because Fixera genuinely needs to feed the Audit/Verification division, through the Master Orchestrator, to Research (RII). Attempt 2 was caught before editing anything. Both source documents (`AI_EMPIRE_Master_Governance_v2.docx`, `AI_EMPIRE_Implementation_Roadmap_v1.docx` — both in `Downloads\Ai-main files\`, previously only CONTEXT.md's summary had been read) were then read in full to find the actual data-sharing laws (Law 6: Privacy — "only access information required for the task"; Law 11: No Unauthorized Information Leakage) and the real technical plan.
+
+**What the roadmap actually specified:** Phase 4.1 was a literal database migration ("connect existing Fixera app to new Supabase project," "verify RLS policies intact after migration") — Fixera's live production data moving into AI_EMPIRE's Supabase project, with Law 6/11 enforced afterward via RLS/classification within one shared database. That's a real, deliberate design choice in the source document, not a misreading — but it was rejected here as too risky for a live revenue system sitting inside a database an early-stage, actively-changing project also has full access to.
+
+**Final resolution:** See the new "Fixera Relationship" section above. Two permanently separate Supabase projects. Fixera's 8 agents are real AI_EMPIRE agents (built in `agents/fixera/`, registered in `agent_registry`, communicating with other divisions through the Master Orchestrator as designed) — but they reach Fixera's actual production data through a narrow, scoped, task-authorized connector, never a shared table or migration. Fixes to Fixera's own schema/code happen in `C:\fixera` directly, not via an AI_EMPIRE agent writing into Fixera's live database. Phase 4 in this file rewritten accordingly — the "Fixera-specific" governance notes were kept (not deleted) since Phase 4's agents will need them.
+
+**Current phase status:** No phase change — planning correction only. Phase 2 remains COMPLETE; Phase 3 not yet started.
+
+**Next session's first task:** Start Phase 3 (Governance Validation — Audit Agent v0.1). The scoped Fixera connector and the 8 Fixera agents are Phase 4 work, not needed yet. Still pending: real `OPENAI_API_KEY`/`RESEND_API_KEY` in `.env`.
 
 ---
 
