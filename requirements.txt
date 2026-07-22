@@ -1,0 +1,6 @@
+# Shared/Phase 2 dependencies. apps/api_gateway has its own
+# requirements.txt for Phase 1's FastAPI service.
+supabase
+python-dotenv
+openai
+resend
