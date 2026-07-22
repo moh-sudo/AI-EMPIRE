@@ -347,6 +347,25 @@ This keeps continuity across sessions without losing context.
 
 **Next session's first task:** Start Phase 3 (Governance Validation — Audit Agent v0.1). The scoped Fixera connector and the 8 Fixera agents are Phase 4 work, not needed yet. Still pending: real `OPENAI_API_KEY`/`RESEND_API_KEY` in `.env`.
 
+### 2026-07-23 — Phase 3 complete (Audit Agent v0.1)
+**Completed:**
+- `agents/audit/checks.py`: the 4 anomaly checks mapped onto the actual schema. `routing_logs` has no error/status column, so ">20% error rate" is defined as blocked-attempts (logged to `audit_vault`, action=`route_request`, outcome=`blocked`) over total attempts in the last 24h. The other 3 checks (unsanitized CONFIDENTIAL+ routed to cloud, stale `agent_registry` reviews, `routing_logs` missing `capability_matched`/`cost_usd`) map directly.
+- `agents/audit/audit_agent.py`: runs the checks, classifies Red (any Critical finding) / Amber (any other finding) / Green (clean), saves immutably to `audit_vault`, emails Mohamed on Amber/Red via `shared/notifications/resend_client.py`.
+- Registered in `agent_registry` (`audit-agent-v0.1`, division `audit`, lifecycle `Shadowing`, model_class `D` — deterministic rule-based, no LLM in v0.1).
+- **Found and fixed a real gap**: `audit_vault`'s "immutable" claim only held via RLS, which the `service_role` key our own backend uses always bypasses in Supabase. Verified an UPDATE succeeded despite RLS having no UPDATE policy. Fixed with `0003_audit_vault_immutability_trigger.sql` — a `BEFORE UPDATE/DELETE` trigger that unconditionally rejects mutation regardless of role. Re-verified: both UPDATE and DELETE now correctly blocked even from the service_role client.
+- `agents/audit/server.py`: this n8n installation has no shell/command-execution node (confirmed live in the n8n UI — it explicitly suggests HTTP Request instead), so a minimal FastAPI wrapper (`POST /run`) exposes the Audit Agent for n8n to call over HTTP.
+- `infrastructure/n8n/audit-agent-daily.json`: Schedule Trigger (daily 06:00, cron `0 6 * * *`) → HTTP Request (`POST http://127.0.0.1:8001/run`). Activated in n8n; manually executed once and confirmed a fresh `audit_vault` row landed immediately.
+
+**Verified live against Supabase:** Green baseline (clean data), then each of the 4 checks individually triggered via deliberate test rows and correctly detected; overall status correctly prioritizes Critical → Red over Amber-level findings.
+
+**Not yet verified:** actual email delivery — `RESEND_API_KEY` is still a placeholder in `.env`, so Amber/Red emails haven't actually been sent (the code path exists and fails gracefully — logs a Severity 2 incident — if the send fails).
+
+**Current phase status:** Phase 3 — COMPLETE (4 of 5 completion criteria fully verified; email delivery pending a real `RESEND_API_KEY`).
+
+**Operational note:** both `agents/audit/server.py` (port 8001) and n8n itself need to be running as persistent processes for the 06:00 cron to actually fire — currently just manually-started dev processes, not yet running as proper background services.
+
+**Next session's first task:** Get a real `RESEND_API_KEY` in `.env` and verify an actual Amber/Red email arrives (trigger a deliberate anomaly, confirm delivery). Then start Phase 4 (Fixera Division's 8 agents + the scoped connector, per the "Fixera Relationship" section).
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
