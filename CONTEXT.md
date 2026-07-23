@@ -429,6 +429,20 @@ This keeps continuity across sessions without losing context.
 
 **Next session's first task:** Wire the 7 agents to actually call `shared.fixera_connector.fetch_all(...)` instead of only accepting mock data as parameters, and test each one end-to-end against real (if currently sparse -- 1 booking, 2 workers, 0 payments/disputes/reviews) production data. Then decide on Partner Verification's design.
 
+### 2026-07-23 — 4 agents wired to the live connector, verified against real production data
+**Completed:** added a `run_*()` live entry point to each agent whose data the connector actually covers, keeping the existing tested pure-logic functions unchanged (still take data as parameters -- correct separation of concerns, no need to hit the DB to unit-test a decision):
+
+- **Service Delivery**: `run_dispatch_sweep()`. Verified against the one real booking in production -- already `in_progress` with a worker assigned, correctly excluded from the "needs dispatch" sweep (confirmed by inspecting the raw row, not just trusting an empty result).
+- **Financial Operations**: `run_classification_sweep()`. No fraud-signal source exists yet, so `fraud_flagged_ids` stays empty rather than fabricated. Noted a minor theoretical looseness (payment.ref_id vs dispute.booking_id isn't filtered by ref_type) -- safe in practice since these are UUIDs, cross-type collision isn't realistic, but documented for future tightening.
+- **Trust & Safety**: `run_trust_safety_sweep()`. Confirmed psycopg2 returns `timestamp with time zone` columns as timezone-aware `datetime` objects (not strings) -- the existing `isinstance(str)` branches in each check handle this transparently, no special-casing needed between mock and live data.
+- **Marketplace Intelligence**: `run_intelligence_sweep()`. Correctly surfaced a genuine bottleneck signal from real data (`Cleaning`: 1 open booking, 0 available workers right now).
+
+**Not wired (documented reasons, not oversights):** Platform Governance needs `information_schema` metadata, a different kind of query than the connector's deliberately narrow `fetch_all()` allows -- extending that scope is a separate decision. Customer Support and Partner Support need a ticket view that doesn't exist in the connector at all (known gap from earlier this session).
+
+**Current phase status:** Phase 4 -- 4 of 7 in-scope agents now genuinely run against live Fixera data. Remaining open items: extend the connector for ticket data (Customer/Partner Support) and schema metadata (Platform Governance) if those are wanted live too, and Partner Verification's sensitive-data design (still deferred).
+
+**Next session's first task:** Either extend the connector (ticket view, schema-metadata access) to wire the remaining 3 agents, design Partner Verification's approach to `owner_national_id`/KYC documents, or move to a different phase/division (Personal, Learning, RII, Forex all still not started per CONTEXT.md's phase plan).
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
