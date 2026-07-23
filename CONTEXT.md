@@ -443,6 +443,16 @@ This keeps continuity across sessions without losing context.
 
 **Next session's first task:** Either extend the connector (ticket view, schema-metadata access) to wire the remaining 3 agents, design Partner Verification's approach to `owner_national_id`/KYC documents, or move to a different phase/division (Personal, Learning, RII, Forex all still not started per CONTEXT.md's phase plan).
 
+### 2026-07-23 — Ticket view added, 6 of 7 agents now live
+**Completed:** added `ai_empire_tickets_summary` (6th connector view) reading `support_tickets`, same privacy rules as the other 5 (excludes `subject`/`message` free-text, `admin_note`, `user_name`/`user_email` PII; includes `refund_decision` since reading an already-made decision to communicate status is these agents' actual job, distinct from authorizing one).
+
+- **Customer Support**: `run_support_queue_sweep()`. Verified against 4 real tickets -- a genuine, concerning finding: all 4 are customer-type, all breached SLA, open 500+ hours (20+ days). Also found and fixed a real gap: production uses a `"high"` priority value that wasn't in `SLA_HOURS_BY_PRIORITY` (was silently falling back to the default 24h tier) -- added an explicit 8h tier for it.
+- **Partner Support**: `run_partner_support_sweep()`. Found and fixed a real bug while wiring to live data: `build_team_notification` referenced a nonexistent `partner_id` field -- the actual `support_tickets` column is `user_id` (confirmed via `information_schema`). Correctly returns empty against real data (no partner-type tickets exist yet -- verified by inspecting the actual 4 rows, not just trusting an empty result).
+
+**Current phase status:** Phase 4 -- 6 of 7 in-scope agents now genuinely run against live Fixera data (Service Delivery, Financial Operations, Trust & Safety, Marketplace Intelligence, Customer Support, Partner Support). Only Platform Governance remains mock-based, needing `information_schema` access the connector deliberately doesn't provide. Partner Verification remains fully deferred.
+
+**Next session's first task:** Decide whether Platform Governance needs live schema-metadata access (a deliberate connector-scope extension, not a quick add) or stays mock-based long-term since its job is inherently about comparing documentation against reality, which mock data can't really simulate. Otherwise: design Partner Verification's approach, or move to a different phase/division.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
