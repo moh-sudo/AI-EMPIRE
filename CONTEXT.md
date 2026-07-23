@@ -393,6 +393,17 @@ This keeps continuity across sessions without losing context.
 
 **Next session's first task:** Either retry the Fixera connector (SQL ready in `infrastructure/fixera_connector_reference.sql`, ideally from a network with working IPv6 or after checking Supabase's Supavisor documentation/support for custom-role pooler issues), or move on to giving the 8 registered Fixera agents real workflow logic using mock/test data in the meantime (similar to how Audit Agent v0.1 started before Phase 4 connected it to anything live).
 
+### 2026-07-23 — 3 of 7 Fixera agents given real logic (mock data, connector still pending)
+**Completed:** `agents/fixera/service_delivery.py`, `financial_ops.py`, `trust_safety.py` -- each unit-tested against mock data matching the connector view schemas, each moved `agent_registry.lifecycle_stage` from `Design` to `Shadowing`.
+
+- **Service Delivery**: `match_partner` (Phase 1 flat-pool dispatch + wallet gate, per Fixera's own roadmap note that the fuller multi-factor Dispatch Decision Framework is their future Phase 2), `detect_lifecycle_event`, `build_lifecycle_email` for the 3 emails this agent owns. Found a real scope boundary: `ai_empire_bookings_summary` excludes customer email/phone (PII minimization), so email sending needs an explicit recipient rather than a lookup -- noted, not silently worked around.
+- **Financial Operations**: `classify_transaction`/`classify_batch` -- auto_process / escalate_human / emergency_hold per the Escalation Ladder's Track 1. Decision-only; never executes a payment (Approval Matrix: AI Agent No, Mohamed Yes). M-Pesa itself stays out of scope (blocked on company registration).
+- **Trust & Safety**: `triage_dispute` (48h SLA tiers), `detect_review_pattern_signals` (clustered low-rating fraud signal, flag-only), `workers_due_for_kyc_reverification`. Found a gap: the connector view has no verification-date column, so re-verification scheduling uses `created_at` as a stand-in -- flagged as a real limitation, not hidden.
+
+**Current phase status:** Phase 4 — IN PROGRESS. 8 agents registered, 3 with tested logic (Service Delivery, Financial Operations, Trust & Safety), 4 still placeholder-only (Platform Governance, Marketplace Intelligence, Customer Support, Partner Support), Partner Verification deliberately deferred. Connector still not connected to anything live.
+
+**Next session's first task:** Continue with the remaining 4 agents (Platform Governance, Marketplace Intelligence, Customer Support, Partner Support), same pattern -- real logic against mock data, unit-tested, `lifecycle_stage` updated. Partner Verification and the connector itself stay deferred.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
