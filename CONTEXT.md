@@ -418,6 +418,17 @@ This keeps continuity across sessions without losing context.
 
 **Next session's first task:** Retry the Fixera connector (see the 2026-07-23 "Phase 4 started" entry above for what was tried) so the 7 built agents can run against real data instead of mocks. Alternatively, design Partner Verification's sensitive-data handling, or move to a different phase/division entirely.
 
+### 2026-07-23 — Fixera connector working
+**What happened:** Recreated the same views/role/grants (unchanged SQL) and it worked. Confirmed live: connected as `ai_empire_reader`, read real rows from all 5 views, write access correctly blocked (`InsufficientPrivilege`), and access to raw tables outside the 5 views (tried `workers` directly) also correctly blocked -- scoping works exactly as designed.
+
+**Root cause of the earlier persistent failures, now better understood:** not a fundamental Supavisor/custom-role limitation as suspected. While testing the connector module, two consecutive calls with identical, verified-correct credentials succeeded, then an immediately following identical call failed with the same "password authentication failed" error -- directly observed, not inferred. This points to Supavisor running multiple backend pooler nodes behind one hostname that don't all have a newly-created role's credentials cached at the same time; which node a given connection lands on determines success or failure until the nodes converge. Added retry logic (4 attempts, 2s apart) to `shared/fixera_connector.py` as the correct fix for that -- confirmed reliable across repeated runs afterward.
+
+**Completed:** `shared/fixera_connector.py` -- `fetch_all(resource, limit=None)`, a deliberately narrow interface (resource is one of `bookings`/`payments`/`disputes`/`reviews`/`workers`, mapped internally to the exact 5 views) rather than a raw SQL passthrough, so callers can't query outside what's actually granted.
+
+**Current phase status:** Phase 4 -- connector is live and working. All 7 in-scope agents (Service Delivery, Financial Operations, Trust & Safety, Platform Governance, Marketplace Intelligence, Customer Support, Partner Support) have tested logic ready to consume it, but none have been wired to call `fetch_all` yet -- they still take data as function parameters (tested with mock dicts). Only Partner Verification remains fully deferred.
+
+**Next session's first task:** Wire the 7 agents to actually call `shared.fixera_connector.fetch_all(...)` instead of only accepting mock data as parameters, and test each one end-to-end against real (if currently sparse -- 1 booking, 2 workers, 0 payments/disputes/reviews) production data. Then decide on Partner Verification's design.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
