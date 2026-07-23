@@ -3,8 +3,8 @@
 Partner-side issue resolution: ticket management and partner
 communications. Owns notifySupportTeam.
 
-Built against a generic mock ticket shape, same known gap as Customer
-Support -- no partner-ticket view exists in the connector yet.
+Reads real tickets via shared.fixera_connector's ai_empire_tickets_summary
+view (support_tickets.user_type='partner').
 
 Per its own Boundaries: never approves or executes a payout/commission
 adjustment itself -- that belongs to Financial Operations.
@@ -54,8 +54,28 @@ def check_needs_escalation(ticket: dict[str, Any], now: Optional[datetime] = Non
 
 def build_team_notification(ticket: dict[str, Any], status: PartnerTicketStatus) -> dict[str, str]:
     """notifySupportTeam content -- goes to Fixera's internal support
-    team, not to the partner."""
+    team, not to the partner. Uses `user_id` (the actual support_tickets
+    column, confirmed via information_schema) -- an earlier version of
+    this used a nonexistent `partner_id` field, fixed when wiring to
+    real data."""
     return {
         "subject": f"Partner ticket #{ticket.get('id')} needs attention",
-        "html": f"<p>Reason: {status.reason}</p><p>Partner: {ticket.get('partner_id', 'unknown')}</p>",
+        "html": f"<p>Reason: {status.reason}</p><p>Partner: {ticket.get('user_id', 'unknown')}</p>",
     }
+
+
+def run_partner_support_sweep() -> list[dict[str, Any]]:
+    """Live entry point: fetches real tickets via the Fixera connector,
+    filters to partner-side tickets, and returns notifications for those
+    needing team escalation."""
+    from shared.fixera_connector import fetch_all
+
+    tickets = fetch_all("tickets")
+    partner_tickets = [t for t in tickets if t.get("user_type") == "partner"]
+
+    notifications = []
+    for ticket in partner_tickets:
+        status = check_needs_escalation(ticket)
+        if status.needs_team_notification:
+            notifications.append(build_team_notification(ticket, status))
+    return notifications

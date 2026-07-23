@@ -1,14 +1,15 @@
 """Scoped, read-only connector to Fixera's production database.
 
 Connects as the ai_empire_reader Postgres role, which has SELECT-only
-access to exactly 5 narrow views (ai_empire_bookings_summary,
+access to exactly 6 narrow views (ai_empire_bookings_summary,
 ai_empire_payments_summary, ai_empire_disputes_summary,
-ai_empire_reviews_summary, ai_empire_workers_summary) -- see
+ai_empire_reviews_summary, ai_empire_workers_summary,
+ai_empire_tickets_summary) -- see
 infrastructure/fixera_connector_reference.sql for the view definitions
 and what's deliberately excluded (PII, OTPs, national IDs, free-text
-statements, etc.) and CONTEXT.md's "Fixera Relationship" section for
-why this exists as a separate connection rather than sharing Fixera's
-own Supabase credentials.
+statements/messages, etc.) and CONTEXT.md's "Fixera Relationship"
+section for why this exists as a separate connection rather than
+sharing Fixera's own Supabase credentials.
 """
 
 import os
@@ -64,14 +65,15 @@ _ALLOWED_VIEWS = {
     "disputes": "ai_empire_disputes_summary",
     "reviews": "ai_empire_reviews_summary",
     "workers": "ai_empire_workers_summary",
+    "tickets": "ai_empire_tickets_summary",
 }
 
 
 def fetch_all(resource: str, limit: Optional[int] = None) -> list[dict[str, Any]]:
     """resource is one of the keys in _ALLOWED_VIEWS ('bookings',
-    'payments', 'disputes', 'reviews', 'workers') -- deliberately not a
-    raw SQL passthrough, so callers can't accidentally query outside the
-    5 sanctioned views."""
+    'payments', 'disputes', 'reviews', 'workers', 'tickets') --
+    deliberately not a raw SQL passthrough, so callers can't
+    accidentally query outside the 6 sanctioned views."""
     if resource not in _ALLOWED_VIEWS:
         raise ValueError(f"Unknown Fixera resource '{resource}'. Allowed: {sorted(_ALLOWED_VIEWS)}")
 

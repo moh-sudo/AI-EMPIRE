@@ -1,33 +1,32 @@
--- FIXERA CONNECTOR — REFERENCE ONLY, NOT CURRENTLY ACTIVE
+-- FIXERA CONNECTOR — REFERENCE / SETUP SQL
 --
 -- This SQL runs against FIXERA'S Supabase project (ref igncnngkbmswomphbhwa),
 -- NOT AI_EMPIRE's own database. It does not belong in
 -- infrastructure/database/migrations/ (which is exclusively for AI_EMPIRE's
 -- own Supabase project) — kept here separately for that reason.
 --
--- STATUS (2026-07-23): Created and then reverted the same day. The 5 views
--- and the ai_empire_reader role were successfully created in Fixera's
--- database, but the connector could not be proven to work: password
--- authentication consistently failed via Supabase's pooler (Supavisor) for
--- every reasonable configuration tried (fresh role, exact known password,
--- both session/transaction pooler modes, after waiting out the documented
--- circuit-breaker cooldown). Direct (non-pooled) connection was not testable
--- from this machine's network, which has no functional IPv6 connectivity.
--- This may be a genuine Supavisor limitation with custom roles — see
--- CONTEXT.md Session Log, 2026-07-23, for full troubleshooting detail.
--- Everything below was reverted (REVOKE + DROP ROLE + DROP VIEW) before
--- this file was written, so Fixera's database currently has none of this.
+-- STATUS (2026-07-23): LIVE AND WORKING. Verified: connects as
+-- ai_empire_reader, reads real data from all 6 views, write access is
+-- correctly blocked (InsufficientPrivilege), and access to raw tables
+-- outside these 6 views is also correctly blocked. An earlier same-day
+-- attempt hit persistent "password authentication failed" errors despite
+-- correct credentials — root cause understood as Supavisor (Fixera's
+-- Supabase pooler) running multiple backend nodes that don't all cache a
+-- newly-created role's credentials simultaneously; a connection landing on
+-- a node that hasn't caught up fails even with correct credentials. Fixed
+-- with retry logic in shared/fixera_connector.py (not by changing anything
+-- here). See CONTEXT.md Session Log, 2026-07-23, for full detail.
 --
--- To retry: run the block below in Fixera's SQL Editor (FIXERA-SERVICES
--- project, not AI_EMPIRE's), replacing the password placeholder, then set
--- FIXERA_DB_HOST/PORT/NAME/USER/PASSWORD in moh-sudo's .env per the format
--- documented in CONTEXT.md.
+-- To recreate from scratch (e.g. after a revert): run the whole block below
+-- in Fixera's SQL Editor (FIXERA-SERVICES project, not AI_EMPIRE's),
+-- choosing your own password, then set FIXERA_DB_HOST/PORT/NAME/USER/
+-- PASSWORD in moh-sudo's .env per the format documented in CONTEXT.md.
 --
 -- Column choices below deliberately exclude PII/sensitive fields per Law 6
 -- (only access what's needed): OTPs, raw addresses/notes, phone numbers,
 -- mpesa transaction references, national ID numbers, photos, and all
--- free-text personal statement/comment fields. See CONTEXT.md's "Fixera
--- Relationship" section for the full reasoning.
+-- free-text personal statement/message/comment fields. See CONTEXT.md's
+-- "Fixera Relationship" section for the full reasoning.
 
 CREATE OR REPLACE VIEW ai_empire_bookings_summary AS
 SELECT
@@ -78,6 +77,21 @@ SELECT
 FROM workers
 WHERE deleted_at IS NULL;
 
+-- Added 2026-07-23 (after the initial 5): general support tickets, used by
+-- Customer Support (user_type='customer') and Partner Support
+-- (user_type='partner') agents. Excludes subject/message (free-text
+-- personal content), admin_note (internal), and user_name/user_email
+-- (PII). refund_decision IS included: reading an already-made decision to
+-- communicate status is these agents' job, distinct from authorizing one.
+-- Fixera also has moving_support_tickets (movers-module-specific) and
+-- ticket_notes, not covered here -- out of scope unless a real need shows up.
+CREATE OR REPLACE VIEW ai_empire_tickets_summary AS
+SELECT
+  id, user_id, user_type, category, status, department, priority,
+  created_at, updated_at, resolved_at, refund_decision,
+  assigned_to, assigned_name, sla_deadline, sla_escalated_at
+FROM support_tickets;
+
 -- Replace with a password you choose yourself.
 CREATE ROLE ai_empire_reader WITH LOGIN PASSWORD 'CHANGE_ME_STRONG_PASSWORD';
 
@@ -87,7 +101,8 @@ GRANT SELECT ON
   ai_empire_payments_summary,
   ai_empire_disputes_summary,
   ai_empire_reviews_summary,
-  ai_empire_workers_summary
+  ai_empire_workers_summary,
+  ai_empire_tickets_summary
 TO ai_empire_reader;
 
 -- Also discovered along the way, worth knowing about independent of this

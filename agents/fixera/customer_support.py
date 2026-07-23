@@ -3,17 +3,15 @@
 Customer issue resolution: ticket triage and status communication.
 Owns sendSupportTicketConfirmation and sendTicketStatusUpdate.
 
-Built against a generic mock ticket shape rather than a connector view
--- neither ai_empire_bookings_summary nor any other view we built
-exposes a support-ticket table (Fixera's `moving_support_tickets`/
-`ticket_notes` tables exist per the schema research but weren't in
-this connector's initial scope). Documented here as a known gap: a
-real implementation needs a ticket-summary view added to the
-connector.
+Reads real tickets via shared.fixera_connector's ai_empire_tickets_summary
+view (support_tickets.user_type='customer'). That view excludes free-text
+subject/message content, admin_note, and user PII (name/email) -- see
+infrastructure/fixera_connector_reference.sql.
 
 Per its own Boundaries: never approves or executes a refund itself --
-that belongs to Financial Operations. This agent communicates status,
-it doesn't authorize payment.
+that belongs to Financial Operations. This agent communicates status
+(including reading an already-made refund_decision), it doesn't
+authorize payment.
 """
 
 from dataclasses import dataclass
@@ -22,6 +20,7 @@ from typing import Any, Optional
 
 SLA_HOURS_BY_PRIORITY = {
     "urgent": 4,
+    "high": 8,  # confirmed a real value in production support_tickets.priority
     "normal": 24,
     "low": 72,
 }
@@ -80,3 +79,13 @@ def build_status_update_email(ticket: dict[str, Any], new_status: str, recipient
         "subject": f"Update on your support ticket #{ticket.get('id')}",
         "html": f"<p>Your ticket status is now: {new_status}.</p>",
     }
+
+
+def run_support_queue_sweep() -> list[TicketTriage]:
+    """Live entry point: fetches real tickets via the Fixera connector,
+    filters to customer-side tickets, and returns the prioritized queue."""
+    from shared.fixera_connector import fetch_all
+
+    tickets = fetch_all("tickets")
+    customer_tickets = [t for t in tickets if t.get("user_type") == "customer"]
+    return prioritize_queue(customer_tickets)
