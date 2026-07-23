@@ -75,3 +75,29 @@ def classify_batch(
         )
         results.append((payment, decision))
     return results
+
+
+def run_classification_sweep(threshold: float = DEFAULT_APPROVAL_THRESHOLD) -> list[dict[str, Any]]:
+    """Live entry point: fetches real payments + disputes via the Fixera
+    connector, cross-references disputed booking refs, and classifies
+    every payment. No fraud signal source exists yet (no fraud-detection
+    view/table) -- fraud_flagged_ids stays empty rather than fabricated.
+    """
+    from shared.fixera_connector import fetch_all
+
+    payments = fetch_all("payments")
+    disputes = fetch_all("disputes")
+
+    # booking_id vs payment.ref_id aren't type-checked against ref_type
+    # here (a payment could reference a moving_request/supplier_order
+    # instead of a booking) -- safe in practice since these are UUIDs and
+    # cross-type collision is not realistically possible, but worth
+    # tightening to a ref_type=='booking' filter if this gets extended.
+    open_dispute_booking_ids = {
+        d.get("booking_id") for d in disputes if d.get("status") not in ("resolved",)
+    }
+
+    results = []
+    for payment, decision in classify_batch(payments, threshold=threshold, disputed_ref_ids=open_dispute_booking_ids):
+        results.append({"payment_id": payment.get("id"), "decision": decision.decision, "reason": decision.reason})
+    return results

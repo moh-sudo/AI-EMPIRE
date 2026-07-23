@@ -104,3 +104,23 @@ def build_lifecycle_email(event: LifecycleEvent, recipient_email: str) -> dict[s
         reason = booking.get("cancellation_reason") or "no reason given"
         html = f"<p>Your booking for {booking.get('service')} was cancelled ({reason}).</p>"
     return {"to": recipient_email, "subject": subject, "html": html}
+
+
+def run_dispatch_sweep(wallet_minimum: float = DEFAULT_WALLET_MINIMUM) -> list[dict[str, Any]]:
+    """Live entry point: fetches real bookings/workers via the Fixera
+    connector, finds unassigned bookings, and attempts a match for each.
+    Returns match results -- doesn't write anything back to Fixera (the
+    connector is read-only by design; actually assigning a booking is
+    Fixera's own system's job, not this agent's)."""
+    from shared.fixera_connector import fetch_all
+
+    bookings = fetch_all("bookings")
+    workers = fetch_all("workers")
+
+    unassigned = [b for b in bookings if not b.get("worker_id") and b.get("status") in ("pending", "upcoming")]
+
+    results = []
+    for booking in unassigned:
+        match = match_partner(booking, workers, wallet_minimum=wallet_minimum)
+        results.append({"booking_id": booking.get("id"), "matched_worker_id": match.get("id") if match else None})
+    return results

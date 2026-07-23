@@ -113,3 +113,27 @@ def workers_due_for_kyc_reverification(
         if created_at and created_at < cutoff:
             due.append(worker)
     return due
+
+
+def run_trust_safety_sweep() -> dict[str, Any]:
+    """Live entry point: fetches real disputes/reviews/workers via the
+    Fixera connector and runs all three checks. psycopg2 returns
+    timestamp columns as timezone-aware datetime objects already (not
+    strings), which the isinstance(str) branches in each check below
+    handle transparently -- no special-casing needed for live vs mock
+    data."""
+    from shared.fixera_connector import fetch_all
+
+    disputes = fetch_all("disputes")
+    reviews = fetch_all("reviews")
+    workers = fetch_all("workers")
+
+    dispute_triage = [triage_dispute(d) for d in disputes]
+    fraud_signals = detect_review_pattern_signals(reviews)
+    kyc_due = workers_due_for_kyc_reverification(workers)
+
+    return {
+        "dispute_triage": [t for t in dispute_triage if t.priority != "routine"],
+        "fraud_signals": fraud_signals,
+        "kyc_reverification_due": [w.get("id") for w in kyc_due],
+    }

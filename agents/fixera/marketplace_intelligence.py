@@ -83,3 +83,18 @@ def bottleneck_services(signals: list[UtilizationSignal], ratio_threshold: float
     meaningfully outstrips supply -- a recommendation to review pricing
     or recruit more partners, never an automatic action."""
     return [s for s in signals if s.ratio >= ratio_threshold]
+
+
+def run_intelligence_sweep(bottleneck_ratio_threshold: float = 3.0) -> dict[str, Any]:
+    """Live entry point: fetches real bookings/workers via the Fixera
+    connector and runs demand + utilization analysis."""
+    from shared.fixera_connector import fetch_all
+
+    bookings = fetch_all("bookings")
+    workers = fetch_all("workers")
+
+    demand = demand_by_service(bookings)
+    utilization = partner_utilization(bookings, workers)
+    bottlenecks = bottleneck_services(utilization, ratio_threshold=bottleneck_ratio_threshold)
+
+    return {"demand": demand, "utilization": utilization, "bottlenecks": bottlenecks}
