@@ -20,7 +20,7 @@ def send_email(
     to: str,
     subject: str,
     html: str,
-    from_address: str = "AI_EMPIRE <onboarding@resend.dev>",
+    from_address: str = "AI_EMPIRE <audit@ai-empire.fixera.africa>",
 ) -> dict:
     """Generic transactional email send via Resend.
 
