@@ -404,6 +404,20 @@ This keeps continuity across sessions without losing context.
 
 **Next session's first task:** Continue with the remaining 4 agents (Platform Governance, Marketplace Intelligence, Customer Support, Partner Support), same pattern -- real logic against mock data, unit-tested, `lifecycle_stage` updated. Partner Verification and the connector itself stay deferred.
 
+### 2026-07-23 — All 7 in-scope Fixera agents now have real logic
+**Completed:** the remaining 4 agents, same pattern as the first 3 (unit-tested against mock data, `lifecycle_stage` Design -> Shadowing):
+
+- **Platform Governance**: `check_column_drift`/`check_trigger_drift`/`check_view_drift` implementing the Execution Truth Principle. Tested against real data, not synthetic -- correctly re-derives the exact 3 discrepancies found earlier this session (`can_receive_jobs` column, `trg_wallet_gate` trigger, `partner_wallet_status` view, all documented but missing in production), plus a negative case confirming no false positives.
+- **Marketplace Intelligence**: `demand_by_service`, `partner_utilization` (bookings-per-worker ratio, handles the zero-worker case without a `ZeroDivisionError`), `bottleneck_services`.
+- **Customer Support**: `triage_ticket` (SLA tiers by priority), `prioritize_queue`, `build_status_update_email` (verified to never mention refunds -- that's Financial Ops' job). Found a gap: no ticket-summary view exists in the connector (Fixera's `moving_support_tickets`/`ticket_notes` tables weren't in the initial 5-view scope) -- built against a generic mock shape pending that.
+- **Partner Support**: `check_needs_escalation` (12h window, tighter than Customer Support's 24h since partner issues can mean a worker stops taking jobs; urgent overrides age), `build_team_notification` (internal-facing, not partner-facing). Same ticket-view gap as Customer Support.
+
+**Current phase status:** Phase 4 — all 7 in-scope agents have real, unit-tested logic. Only two things remain: (1) Partner Verification, deliberately deferred pending a dedicated design for handling `owner_national_id`/KYC documents safely; (2) the connector itself, reverted and unresolved (Supavisor auth issue). None of the 7 agents' logic is connected to live Fixera data yet -- everything tested against mock data shaped like the (currently nonfunctional) connector views.
+
+**Decisions/discoveries:** Two small connector gaps surfaced while building agent logic: no dedicated worker verification-date column (Trust & Safety's KYC re-check uses `created_at` as a stand-in), and no ticket-summary view at all (Customer Support and Partner Support both built against generic mock shapes). Worth adding to `infrastructure/fixera_connector_reference.sql` whenever the connector gets revisited.
+
+**Next session's first task:** Retry the Fixera connector (see the 2026-07-23 "Phase 4 started" entry above for what was tried) so the 7 built agents can run against real data instead of mocks. Alternatively, design Partner Verification's sensitive-data handling, or move to a different phase/division entirely.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
