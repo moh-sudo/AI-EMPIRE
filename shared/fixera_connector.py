@@ -1,15 +1,28 @@
 """Scoped, read-only connector to Fixera's production database.
 
 Connects as the ai_empire_reader Postgres role, which has SELECT-only
-access to exactly 6 narrow views (ai_empire_bookings_summary,
+access to exactly 10 narrow views (ai_empire_bookings_summary,
 ai_empire_payments_summary, ai_empire_disputes_summary,
 ai_empire_reviews_summary, ai_empire_workers_summary,
-ai_empire_tickets_summary) -- see
+ai_empire_tickets_summary, ai_empire_partner_verification_summary,
+ai_empire_schema_columns_summary, ai_empire_schema_triggers_summary,
+ai_empire_schema_views_summary) -- see
 infrastructure/fixera_connector_reference.sql for the view definitions
 and what's deliberately excluded (PII, OTPs, national IDs, free-text
 statements/messages, etc.) and CONTEXT.md's "Fixera Relationship"
 section for why this exists as a separate connection rather than
 sharing Fixera's own Supabase credentials.
+
+ai_empire_partner_verification_summary additionally runs every string
+leaf of workers.service_details through a redact-to-presence Postgres
+function before it ever reaches this connector -- see that view's
+definition for what "presence" means for *ExpiryDate vs other *Date
+fields.
+
+The three ai_empire_schema_* views expose only schema *structure*
+(table/column/trigger/view names and column data types) via Postgres's
+information_schema -- never any row data -- for Platform Governance's
+drift detection between documented and actual schema.
 """
 
 import os
@@ -66,14 +79,20 @@ _ALLOWED_VIEWS = {
     "reviews": "ai_empire_reviews_summary",
     "workers": "ai_empire_workers_summary",
     "tickets": "ai_empire_tickets_summary",
+    "partner_verification": "ai_empire_partner_verification_summary",
+    "schema_columns": "ai_empire_schema_columns_summary",
+    "schema_triggers": "ai_empire_schema_triggers_summary",
+    "schema_views": "ai_empire_schema_views_summary",
 }
 
 
 def fetch_all(resource: str, limit: Optional[int] = None) -> list[dict[str, Any]]:
     """resource is one of the keys in _ALLOWED_VIEWS ('bookings',
-    'payments', 'disputes', 'reviews', 'workers', 'tickets') --
-    deliberately not a raw SQL passthrough, so callers can't
-    accidentally query outside the 6 sanctioned views."""
+    'payments', 'disputes', 'reviews', 'workers', 'tickets',
+    'partner_verification', 'schema_columns', 'schema_triggers',
+    'schema_views') -- deliberately not a raw SQL passthrough, so
+    callers can't accidentally query outside the 10 sanctioned
+    views."""
     if resource not in _ALLOWED_VIEWS:
         raise ValueError(f"Unknown Fixera resource '{resource}'. Allowed: {sorted(_ALLOWED_VIEWS)}")
 

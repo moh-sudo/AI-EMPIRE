@@ -92,6 +92,114 @@ SELECT
   assigned_to, assigned_name, sla_deadline, sla_escalated_at
 FROM support_tickets;
 
+-- Added 2026-07-24: Partner Verification support. Unlike the 6 views
+-- above (which just exclude sensitive columns), workers.service_details
+-- is a JSONB blob whose *shape* varies by partner_role and legitimately
+-- contains sensitive leaf values (national ID numbers, KYC/ID photo
+-- URLs, crew/reference names and phone numbers, insurance policy
+-- numbers). Rather than excluding it entirely (which would leave the
+-- Partner Verification agent blind to what's actually missing from an
+-- application), this recursively redacts every string leaf to a
+-- presence boolean, so the agent can check "is this required field
+-- filled in" without ever seeing the value itself.
+--
+-- Two date semantics, disambiguated by key suffix (matches the field
+-- names OnboardingPage.jsx already writes): keys ending in "ExpiryDate"
+-- (e.g. insurance coverage) redact to "is this date still in the
+-- future" (not yet expired); other keys ending in "Date" (e.g.
+-- *BgCheckDate) redact to "is this date within the last 6 months"
+-- (recently issued). Any other string redacts to plain presence.
+CREATE OR REPLACE FUNCTION ai_empire_redact_to_presence(data jsonb)
+RETURNS jsonb
+LANGUAGE plpgsql
+IMMUTABLE
+AS $$
+DECLARE
+  result jsonb;
+  key text;
+  val jsonb;
+  arr_result jsonb;
+  item jsonb;
+BEGIN
+  IF data IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  CASE jsonb_typeof(data)
+    WHEN 'object' THEN
+      result := '{}'::jsonb;
+      FOR key, val IN SELECT * FROM jsonb_each(data) LOOP
+        IF key ILIKE '%ExpiryDate' AND jsonb_typeof(val) = 'string' THEN
+          BEGIN
+            result := result || jsonb_build_object(
+              key, to_jsonb((val #>> '{}')::date > current_date)
+            );
+          EXCEPTION WHEN OTHERS THEN
+            result := result || jsonb_build_object(key, ai_empire_redact_to_presence(val));
+          END;
+        ELSIF key ILIKE '%Date' AND jsonb_typeof(val) = 'string' THEN
+          BEGIN
+            result := result || jsonb_build_object(
+              key, to_jsonb((val #>> '{}')::date > (current_date - interval '6 months'))
+            );
+          EXCEPTION WHEN OTHERS THEN
+            result := result || jsonb_build_object(key, ai_empire_redact_to_presence(val));
+          END;
+        ELSE
+          result := result || jsonb_build_object(key, ai_empire_redact_to_presence(val));
+        END IF;
+      END LOOP;
+      RETURN result;
+    WHEN 'array' THEN
+      arr_result := '[]'::jsonb;
+      FOR item IN SELECT * FROM jsonb_array_elements(data) LOOP
+        arr_result := arr_result || jsonb_build_array(ai_empire_redact_to_presence(item));
+      END LOOP;
+      RETURN arr_result;
+    WHEN 'string' THEN
+      RETURN to_jsonb((data #>> '{}') IS NOT NULL AND (data #>> '{}') <> '');
+    ELSE
+      RETURN data; -- booleans/numbers pass through unchanged
+  END CASE;
+END;
+$$;
+
+CREATE OR REPLACE VIEW ai_empire_partner_verification_summary AS
+SELECT
+  id,
+  partner_role,
+  verification_status,
+  onboarding_complete,
+  created_at,
+  (profile_photo_url IS NOT NULL AND profile_photo_url <> '') AS has_profile_photo,
+  (id_photo_url      IS NOT NULL AND id_photo_url      <> '') AS has_id_photo,
+  (tax_pin           IS NOT NULL AND tax_pin           <> '') AS has_tax_pin,
+  ai_empire_redact_to_presence(service_details) AS service_details_presence
+FROM workers
+WHERE onboarding_complete = true
+  AND deleted_at IS NULL;
+
+-- Added 2026-07-24: Platform Governance support. Exposes only schema
+-- *structure* (table/column/trigger/view names, column data types) via
+-- information_schema -- never any row data. This is what lets Platform
+-- Governance check documented schema claims (like the trg_wallet_gate
+-- gap noted below) against what's actually live, instead of staying
+-- permanently mock-based.
+CREATE OR REPLACE VIEW ai_empire_schema_columns_summary AS
+SELECT table_name, column_name, data_type
+FROM information_schema.columns
+WHERE table_schema = 'public';
+
+CREATE OR REPLACE VIEW ai_empire_schema_triggers_summary AS
+SELECT event_object_table AS table_name, trigger_name
+FROM information_schema.triggers
+WHERE trigger_schema = 'public';
+
+CREATE OR REPLACE VIEW ai_empire_schema_views_summary AS
+SELECT table_name AS view_name
+FROM information_schema.views
+WHERE table_schema = 'public';
+
 -- Replace with a password you choose yourself.
 CREATE ROLE ai_empire_reader WITH LOGIN PASSWORD 'CHANGE_ME_STRONG_PASSWORD';
 
@@ -102,7 +210,11 @@ GRANT SELECT ON
   ai_empire_disputes_summary,
   ai_empire_reviews_summary,
   ai_empire_workers_summary,
-  ai_empire_tickets_summary
+  ai_empire_tickets_summary,
+  ai_empire_partner_verification_summary,
+  ai_empire_schema_columns_summary,
+  ai_empire_schema_triggers_summary,
+  ai_empire_schema_views_summary
 TO ai_empire_reader;
 
 -- Also discovered along the way, worth knowing about independent of this
@@ -112,7 +224,9 @@ TO ai_empire_reader;
 -- production -- confirmed via information_schema.triggers and
 -- information_schema.columns. The wallet-minimum enforcement Fixera's own
 -- docs assume is live is not currently active. This is Fixera's own
--- codebase/ops issue to fix, not something touched from here.
+-- codebase/ops issue to fix, not something touched from here. As of
+-- 2026-07-24 this is also the first real drift case Platform Governance's
+-- run_governance_sweep() checks for automatically.
 
 -- Also not found in production despite being referenced in a migration
 -- file: the `partner_wallet_status` view. Only `partner_ratings` exists.
