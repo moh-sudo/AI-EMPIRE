@@ -45,11 +45,8 @@ to v0.2. v0.1 sends the proposal to Telegram for visibility
 confirmed=True to actually execute.
 """
 
-import os
 from dataclasses import dataclass, field
 from typing import Literal, Optional
-
-import requests
 
 DEMO_ACCOUNTS = {"exness_demo"}
 REAL_ACCOUNTS = {"fundednext_stellar_lite_10k", "exness_live", "ic_markets_live"}
@@ -167,33 +164,15 @@ def format_telegram_message(proposal: TradeProposal, tradeable: bool, reasons: l
 
 
 def send_telegram_alert(message: str) -> dict:
-    """Sends a one-way notification -- TELEGRAM_BOT_TOKEN and
-    TELEGRAM_CHAT_ID must be set in .env (not yet configured as of
-    2026-07-25). Never raises on failure or on missing config -- a
-    notification failing shouldn't crash the pipeline; logs a failed-
-    send experience row instead, same pattern used for Resend email
-    failures elsewhere in this codebase."""
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-    if not token or not chat_id:
-        return {"sent": False, "reason": "TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID not configured in .env yet."}
+    """Sends a one-way notification via Entry & Exit's OWN dedicated
+    bot (TELEGRAM_BOT_TOKEN) -- deliberately a different bot/token than
+    CEO/Lead's routine briefings (TELEGRAM_CEO_BOT_TOKEN, see
+    agents/forex/ceo_lead.py), per Mohamed's explicit request
+    (2026-07-26): a real trade proposal needing his confirmation should
+    never get buried under a routine market update in the same chat."""
+    from agents.forex._telegram import send_telegram
 
-    try:
-        resp = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": message},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        return {"sent": True, "response": resp.json()}
-    except requests.RequestException as e:
-        from agents.forex._memory_helpers import safe_add_experience
-
-        safe_add_experience(
-            division="forex", agent_id="forex-entry-exit-v0.1", event_type="telegram_send_failed",
-            context=message, outcome="failed", metadata={"error": str(e)},
-        )
-        return {"sent": False, "reason": str(e)}
+    return send_telegram(message, token_env="TELEGRAM_BOT_TOKEN")
 
 
 def execute_order(proposal: TradeProposal, confirmed: bool) -> dict:

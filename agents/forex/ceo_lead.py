@@ -148,3 +148,68 @@ def run_daily_briefing() -> dict:
         metadata={"section_count": len(sections)},
     )
     return {"summary": summary, "sections": sections}
+
+
+# ─────────────────────────────────────────────────────────────────
+# 2026-07-26: Telegram delivery for the daily briefing, per Mohamed's
+# own request -- he wants to check "how's the market today" from his
+# phone without being at his trading setup. Kept as a thin wrapper
+# around run_daily_briefing() rather than folded into it, so the pure
+# aggregation logic stays testable without a Telegram round-trip.
+# ─────────────────────────────────────────────────────────────────
+
+TELEGRAM_MESSAGE_LIMIT = 4096  # Telegram's own hard limit on sendMessage text length
+
+
+def _chunk_for_telegram(text: str, limit: int = TELEGRAM_MESSAGE_LIMIT) -> list[str]:
+    """Splits on section boundaries (double newline) first, only
+    hard-splitting a single oversized section as a last resort -- so a
+    long briefing doesn't get cut off mid-sentence for no reason."""
+    if len(text) <= limit:
+        return [text]
+
+    chunks: list[str] = []
+    current = ""
+    for part in text.split("\n\n"):
+        candidate = f"{current}\n\n{part}" if current else part
+        if len(candidate) <= limit:
+            current = candidate
+        else:
+            if current:
+                chunks.append(current)
+            if len(part) <= limit:
+                current = part
+            else:
+                for i in range(0, len(part), limit):
+                    chunks.append(part[i:i + limit])
+                current = ""
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def run_daily_briefing_and_notify() -> dict:
+    """Live entry point for both the scheduled push and the on-demand
+    Telegram trigger -- runs the same run_daily_briefing() either way,
+    then delivers it over Telegram in as many messages as needed.
+    Uses CEO/Lead's OWN dedicated bot (TELEGRAM_CEO_BOT_TOKEN) --
+    deliberately separate from Entry & Exit's trade-alert bot
+    (TELEGRAM_BOT_TOKEN, see agents/forex/entry_exit.py), per Mohamed's
+    explicit request (2026-07-26): routine market briefings shouldn't
+    bury a real trade proposal needing his confirmation in the same
+    chat. Telegram delivery failures don't affect the briefing itself
+    (it's already logged to memory_knowledge by run_daily_briefing())
+    -- send_telegram() already fails gracefully and logs its own
+    failure, so this just reports what happened."""
+    from agents.forex._telegram import send_telegram
+
+    briefing = run_daily_briefing()
+    chunks = _chunk_for_telegram(briefing["summary"])
+
+    send_results = [send_telegram(chunk, token_env="TELEGRAM_CEO_BOT_TOKEN") for chunk in chunks]
+    return {
+        "briefing": briefing,
+        "telegram_messages_sent": sum(1 for r in send_results if r.get("sent")),
+        "telegram_messages_total": len(chunks),
+        "telegram_results": send_results,
+    }

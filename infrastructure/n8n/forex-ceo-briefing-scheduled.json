@@ -1,0 +1,73 @@
+{
+  "name": "forex-ceo-briefing-scheduled",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "id": "a1e2f3b4-1111-4a2b-9c3d-000000000001",
+      "name": "09:00 EAT (2AM NY, London open)"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 15 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 160],
+      "id": "a1e2f3b4-1111-4a2b-9c3d-000000000002",
+      "name": "15:00 EAT (8AM NY, NY open)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8002/run-briefing",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [208, 80],
+      "id": "a1e2f3b4-1111-4a2b-9c3d-000000000003",
+      "name": "Run Daily Briefing"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "09:00 EAT (2AM NY, London open)": {
+      "main": [[{ "node": "Run Daily Briefing", "type": "main", "index": 0 }]]
+    },
+    "15:00 EAT (8AM NY, NY open)": {
+      "main": [[{ "node": "Run Daily Briefing", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b2f3a4c5-2222-4b3c-8d4e-000000000001",
+  "meta": {
+    "instanceId": "2442c103091fc3db3a62ddff01333be403ece2b2cfb7e6ba914ccc82432a7656"
+  },
+  "nodeGroups": [],
+  "id": "F0r3xCe0Br13f1ngSchd",
+  "tags": []
+}
