@@ -616,6 +616,22 @@ Mohamed asked how to check "how's the market today" without being at his trading
 
 **Next session's first task:** Once Mohamed confirms OpenAI billing is set up, re-run the `gpt-4o-mini` test call to confirm real quota works, then design the conversational layer -- almost certainly reusing the existing prompt boundaries system (identity/mission/boundaries/workflow, hash-locked) so each bot can converse naturally while staying constrained to its own actual job, matching Mohamed's own "communicate like a normal person but do their job respectfully" framing. Otherwise: the still-open n8n activation step from the entry above, or resume Fixera's paused items.
 
+### 2026-07-26 (end of session) -- Agenda for next session, machine put to rest
+
+Mohamed listed several things to pick up next time, explicitly deferred rather than built this session:
+
+1. **Alert-timing correction for the scheduled briefing.** Currently `forex-ceo-briefing-scheduled.json` fires twice (9:00/15:00 EAT = 2AM/8AM NY during EDT -- London open and NY open). Mohamed wants a ping at **all three** session opens instead -- Asian, London, AND New York (three alerts, not two). Needs the Asian-open EAT-equivalent worked out and a third Schedule Trigger node added.
+2. **Per-pair trading timetable.** Mohamed wants a designed schedule for which of his traded pairs (EURUSD, GBPUSD, USDCAD, XAUUSD, NAS100) to focus on during which session/time window -- not yet discussed in any detail, needs a real conversation about his actual pair-to-session preferences before building anything.
+3. **A Fixera "CEO" equivalent agent** -- something that chats/reports to Mohamed about Fixera's status, filling the same role Forex's CEO/Lead Agent plays for the Forex Division (aggregating other agents' output into one voice). Fixera's 8 agents (Service Delivery, Financial Ops, Trust & Safety, Platform Governance, Marketplace Intelligence, Customer Support, Partner Support, Partner Verification) currently have no equivalent aggregation/reporting layer -- each just runs its own sweep independently.
+4. **A Fixera Marketing Agent** -- handles advertisement, video content, and posting across platforms. Entirely new scope, not part of Fixera's original 8-agent design; needs its own discussion of what "posting on all platforms" actually means in terms of real API access (which platforms, what content pipeline).
+5. **Marketplace price regulation** -- something that oversees/regulates the prices vendors and suppliers set when listing their commodities on Fixera. Also new scope, needs discussion of what "regulate" means here (a hard cap? a flagging/review system? comparison against market rates?) before any design decision.
+
+**LLM/OpenAI status, explicitly left as-is per Mohamed's own instruction:** `OPENAI_API_KEY` is a real key but billing/credit isn't set up yet (confirmed via a live `gpt-4o-mini` call returning `insufficient_quota`) -- Mohamed will handle billing whenever he's ready, no action needed until he says so. Ollama (the free local alternative) needs a more powerful machine than what's currently available -- also explicitly deferred, not abandoned.
+
+**Machine put to rest at Mohamed's explicit request** (end of 2026-07-26 session): both long-running background processes -- the Audit Agent server (`agents/audit/server.py`, port 8001, running since 2026-07-23) and n8n itself (running since 2026-07-23) -- were stopped. **This means the daily 06:00 audit sweep will NOT fire until both are manually restarted** (matches this file's own existing note that neither persists across restarts yet -- this session just made that gap concrete by actually stopping them rather than them dying from a reboot). Nothing from this session's own work (Telegram bots, `agents/forex/server.py`) was left running either -- it was never started as a persistent process in the first place, only exercised via one-off test scripts that already exited on their own.
+
+**Next session's first task:** Restart n8n and `agents/audit/server.py` (port 8001) first, before anything else, so the daily audit resumes. Then work through the 5-item agenda above in whatever order Mohamed wants to start -- none of them have any technical blocker, they're all genuinely just pending discussions/decisions, not stalled builds.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
