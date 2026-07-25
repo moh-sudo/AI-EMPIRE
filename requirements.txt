@@ -4,3 +4,5 @@ supabase
 python-dotenv
 openai
 resend
+requests
+MetaTrader5  # Windows-only; Forex Division's Market Analytics agent, needs a locally running MT5 terminal
