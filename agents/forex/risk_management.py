@@ -21,7 +21,7 @@ are different:
 """
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, Optional
 
 FUNDEDNEXT_STELLAR_LITE_10K = {
     "initial_balance": 10_000.0,
@@ -192,6 +192,67 @@ def check_daily_target_status(todays_pnl: float, target: float = DAILY_PROFIT_TA
     if todays_pnl >= target * 0.5:
         return {"status": "approaching_target", "notes": [f"Today's P&L (${todays_pnl:,.2f}) is over half of the ${target:,.2f} daily target."]}
     return {"status": "in_progress", "notes": [f"Today's P&L (${todays_pnl:,.2f}) is below the ${target:,.2f} daily target."]}
+
+
+# ─────────────────────────────────────────────────────────────────
+# 2026-07-26: max-trades-per-day discipline gate, per Mohamed's own
+# explicit correction on how the pair watchlist actually works -- the
+# 8 pairs in agents/forex/_pairs.py are ELIGIBLE, not mandatory (only
+# trade when a real opportunity shows up), but no matter how many pairs
+# show an opportunity on a given day, at most 2 trades get taken. His
+# own sequencing rule: if trade 1 is a loss, review it (backtest, find
+# what went wrong, journal) before trade 2; whether trade 2 then wins
+# or the day ends after 2 wins, 2 trades is the hard stop either way.
+# ─────────────────────────────────────────────────────────────────
+
+MAX_TRADES_PER_DAY = 2
+
+
+TRADE_COUNT_REFERENCE_TEXT = """Daily trade-count discipline rule, Mohamed's own explicit correction (2026-07-26):
+the pair watchlist (agents/forex/_pairs.py) is not a mandate to trade every pair every day --
+only take a trade when a real opportunity actually appears. But no matter how many pairs show
+an opportunity on a given day (even 3 at once), at most 2 trades get taken, full stop. Sequencing:
+if the first trade is a loss, it must be backtested, the mistake identified, and journaled before
+the second trade. Whether the second trade then wins, or the day simply ends after 2 wins, 2
+trades is the hard stop either way -- the rule does not bend just because both trades were
+profitable."""
+
+
+def run_trade_count_reference_publish() -> dict:
+    from agents.forex._memory_helpers import safe_add_knowledge
+
+    return safe_add_knowledge(
+        division="forex",
+        agent_id="forex-risk-management-v0.1",
+        content=TRADE_COUNT_REFERENCE_TEXT,
+        source="mohamed-provided-2026-07-26",
+        metadata={"max_trades_per_day": MAX_TRADES_PER_DAY},
+    )
+
+
+def check_trade_count_status(trades_taken_today: int, last_trade_result: Optional[Literal["win", "loss"]] = None) -> dict:
+    """Mohamed's own daily trade-count rule: at most MAX_TRADES_PER_DAY
+    trades, regardless of how many pairs show an opportunity or how
+    those trades turn out. If exactly one trade has been taken and it
+    was a loss, a review (backtest + find the mistake + journal) is
+    required before a second trade -- modeled as its own status rather
+    than folded into "can_trade" so the gate is explicit, not implied."""
+    if trades_taken_today >= MAX_TRADES_PER_DAY:
+        return {
+            "status": "day_complete",
+            "notes": [f"{trades_taken_today} trades already taken today -- your own rule is a hard stop at {MAX_TRADES_PER_DAY}/day, regardless of how many pairs show an opportunity or whether those trades won or lost."],
+        }
+
+    if trades_taken_today == 1 and last_trade_result == "loss":
+        return {
+            "status": "review_required_before_next",
+            "notes": ["First trade was a loss -- your own rule: backtest it, find what was wrong, and journal it before taking the second trade."],
+        }
+
+    return {
+        "status": "can_trade",
+        "notes": [f"{trades_taken_today} of {MAX_TRADES_PER_DAY} trades taken today -- another trade is allowed if a real opportunity appears (the pair list is a watchlist, not a mandate to trade every pair every day)."],
+    }
 
 
 def log_risk_discussion(evaluation: RiskEvaluation) -> dict:

@@ -11,12 +11,21 @@ per the governance doc's Research Mode requirements.
 Data sources (all free, no API key required):
   - ForexFactory's calendar feed (widely used, unofficial JSON) for
     scheduled economic events with impact ratings.
-  - Fed / ECB / BOE press-release RSS feeds for official statements the
-    moment they're published.
+  - Fed / ECB / BOE / BOJ / SNB press-release RSS feeds for official
+    statements the moment they're published. BOJ and SNB added
+    2026-07-26 alongside the pair-list expansion (USDJPY, USDCHF) --
+    each individually verified as a real, working feed before adding
+    (never guessed). RBA (for AUDUSD) was researched too but its
+    feed actively returns 403 Forbidden even from a plain requests.get
+    with a browser user-agent -- not addable right now, a real gap,
+    not silently worked around. AUD news still reaches the pipeline via
+    the ForexFactory calendar below, just without a dedicated RBA
+    statement feed.
 
-Scoped to the pairs the user actually trades (EURUSD, GBPUSD, USDCAD,
-XAUUSD, NAS100), which map to USD, EUR, GBP, CAD as the currencies
-worth tracking -- everything else is noise for this account.
+Scoped to the pairs the user actually trades (expanded 2026-07-26:
+EURUSD, GBPUSD, USDCAD, USDJPY, USDCHF, AUDUSD, XAUUSD, NAS100), which
+map to USD, EUR, GBP, CAD, JPY, CHF, AUD as the currencies worth
+tracking -- everything else is noise for this account.
 """
 
 import xml.etree.ElementTree as ET
@@ -32,9 +41,11 @@ CENTRAL_BANK_FEEDS = {
     "Fed": "https://www.federalreserve.gov/feeds/press_all.xml",
     "ECB": "https://www.ecb.europa.eu/rss/press.html",
     "BOE": "https://www.bankofengland.co.uk/rss/news",
+    "BOJ": "https://www.boj.or.jp/en/rss/whatsnew.xml",
+    "SNB": "https://www.snb.ch/public/en/rss/news",
 }
 
-RELEVANT_CURRENCIES = {"USD", "EUR", "GBP", "CAD"}
+RELEVANT_CURRENCIES = {"USD", "EUR", "GBP", "CAD", "JPY", "CHF", "AUD"}
 ALERT_IMPACT_LEVELS = {"Medium", "High"}
 
 

@@ -22,9 +22,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
-# Mohamed's actual traded instruments -- narrowed down from a longer
-# list "because I understand more" (his own words, journal Week 2).
-TRADED_PAIRS = {"EURUSD", "GBPUSD", "USDCAD", "XAUUSD", "NAS100"}
+# Mohamed's actual traded instruments -- expanded 2026-07-26 (originally
+# narrowed down from a longer list "because I understand more", journal
+# Week 2). Single source of truth now lives in agents/forex/_pairs.py
+# alongside the per-pair trading-day schedule and priority tier.
+from agents.forex._pairs import PRIORITY_PAIRS, TRADED_PAIRS
 
 # Session windows in NY time, exactly as documented in the journal.
 SESSION_WINDOWS = {
@@ -621,14 +623,44 @@ def ema_stochastic_signal(
 
 DXY_PAIR_CORRELATION: dict[str, dict[str, str]] = {
     # Direction DXY implies for each pair Mohamed trades, per his own notes (page 37-38).
-    # USDCAD isn't named in his DXY notes (only EURUSD/GBPUSD/USDJPY are) -- included here
-    # as "sell"/"buy" per USD-is-base logic but flagged as inferred, not directly documented.
+    # EURUSD/GBPUSD/USDJPY are the 3 explicitly named in his notes -- USDJPY was actually
+    # missing from this table until 2026-07-26 despite being documented as named, a real
+    # gap fixed alongside the pair-list expansion. USDCAD/XAUUSD/USDCHF/AUDUSD are extended
+    # here via the same USD-is-base-or-quote logic but flagged as inferred, not directly
+    # documented, so that distinction isn't silently lost.
     "EURUSD": {"bullish": "sell", "bearish": "buy"},
     "GBPUSD": {"bullish": "sell", "bearish": "buy"},
+    "USDJPY": {"bullish": "buy", "bearish": "sell"},
     "USDCAD": {"bullish": "buy", "bearish": "sell"},
+    "USDCHF": {"bullish": "buy", "bearish": "sell"},
+    "AUDUSD": {"bullish": "sell", "bearish": "buy"},
     "XAUUSD": {"bullish": "sell", "bearish": "buy"},
 }
-DXY_INFERRED_PAIRS = {"USDCAD", "XAUUSD"}
+DXY_INFERRED_PAIRS = {"USDCAD", "XAUUSD", "USDCHF", "AUDUSD"}
+
+
+TRADING_SCHEDULE_REFERENCE_TEXT = """Trading schedule reference, Mohamed's own explicit correction (2026-07-26):
+Traded pairs (8 total): EURUSD, GBPUSD, USDCAD, USDJPY, USDCHF, AUDUSD, NAS100 trade all 5
+weekdays; XAUUSD trades only Tuesday/Wednesday/Thursday. This is a WATCHLIST, not a mandate --
+being eligible on a given day does not mean that pair must be traded that day. The actual rule
+is opportunistic: only take a trade when a real setup appears on one of these pairs.
+Priority tier ("more eyes"): EURUSD, USDJPY, XAUUSD, USDCAD, USDCHF, and NAS100 get extra
+attention. GBPUSD and AUDUSD are tradeable but not in this priority tier.
+DXY (US Dollar Index) is checked every single day as context -- it is never itself traded, but
+its direction helps confirm or contradict a proposed trade on the USD-related pairs above (see
+dxy_bias_check())."""
+
+
+def run_trading_schedule_reference_publish() -> dict:
+    from agents.forex._memory_helpers import safe_add_knowledge
+
+    return safe_add_knowledge(
+        division="forex",
+        agent_id="forex-strategy-v0.1",
+        content=TRADING_SCHEDULE_REFERENCE_TEXT,
+        source="mohamed-provided-2026-07-26",
+        metadata={"traded_pairs": sorted(TRADED_PAIRS), "priority_pairs": sorted(PRIORITY_PAIRS)},
+    )
 
 
 def dxy_bias_check(dxy_direction: str, pair: str, proposed_direction: str) -> dict:
@@ -636,9 +668,10 @@ def dxy_bias_check(dxy_direction: str, pair: str, proposed_direction: str) -> di
     most of his traded pairs are USD-related, so DXY direction should
     agree with a proposed trade direction -- "if your pair setup fights
     DXY, probability drops." Only EURUSD/GBPUSD/USDJPY are explicitly
-    named in the notes; USDCAD/XAUUSD are extended here via the same
-    USD-is-base logic and explicitly flagged as inferred rather than
-    directly documented, so that distinction isn't silently lost."""
+    named in the notes; USDCAD/XAUUSD/USDCHF/AUDUSD are extended here
+    via the same USD-is-base-or-quote logic and explicitly flagged as
+    inferred rather than directly documented, so that distinction isn't
+    silently lost."""
     pair_upper = pair.upper()
     expected = DXY_PAIR_CORRELATION.get(pair_upper, {}).get(dxy_direction)
     if expected is None:

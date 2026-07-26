@@ -19,10 +19,14 @@ import requests
 from agents.forex.research import CalendarEvent, fetch_forexfactory_calendar
 
 # Maps traded pairs to the currencies whose news could move them.
+# Expanded 2026-07-26 alongside the pair-list expansion in agents/forex/_pairs.py.
 PAIR_CURRENCIES = {
     "EURUSD": {"EUR", "USD"},
     "GBPUSD": {"GBP", "USD"},
     "USDCAD": {"USD", "CAD"},
+    "USDJPY": {"USD", "JPY"},
+    "USDCHF": {"USD", "CHF"},
+    "AUDUSD": {"AUD", "USD"},
     "XAUUSD": {"USD"},  # gold trades primarily off USD/risk-sentiment news
     "NAS100": {"USD"},
 }

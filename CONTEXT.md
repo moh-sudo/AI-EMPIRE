@@ -656,6 +656,26 @@ Deleted the stale row, re-ran the sweep, confirmed Green. Mohamed's own inbox wi
 
 **Next session's first task:** Continue the remaining 4-item agenda (per-pair timetable, Fixera CEO-equivalent agent, Fixera Marketing Agent, marketplace price regulation). Also worth double-checking OpenAI billing status whenever Mohamed sets it up -- once quota is restored, `safe_add_knowledge`/`safe_add_experience` will start generating real embeddings automatically, no code change needed, but it's worth confirming a real embedding actually lands (not just the graceful NULL fallback) the first time after billing goes live.
 
+### 2026-07-26 (still later) -- Per-pair timetable built: pair list expanded to 8, DXY monitoring added, max-2-trades/day discipline gate
+
+**Pair list expanded from 5 to 8** (added USDJPY, USDCHF, AUDUSD) per Mohamed's own instruction, with two critical clarifications that reshaped the model: (1) the list is a WATCHLIST, not a mandate -- being eligible doesn't mean a pair must be traded every day, only when a real opportunity appears; (2) regardless of how many pairs show an opportunity on a given day, at most 2 trades are ever taken, with a mandatory review (backtest + find the mistake + journal) between trade 1 and trade 2 if trade 1 was a loss -- the 2-trade cap holds even after 2 wins.
+
+**New `agents/forex/_pairs.py`** consolidates what used to be independently duplicated `TRADED_PAIRS` constants in `strategy.py` and `market_analytics.py` into one source of truth: `TRADED_PAIRS` (8 pairs), `PRIORITY_PAIRS` ("more eyes" tier -- EURUSD, USDJPY, XAUUSD, USDCAD, USDCHF, NAS100; GBPUSD and AUDUSD are tradeable but not prioritized), `PAIR_TRADING_DAYS` (all 5 weekdays except XAUUSD which is Tue/Wed/Thu only), and `is_pair_tradeable_today()`. Uses `zoneinfo` for correct NY-time weekday resolution -- found Windows doesn't ship the IANA timezone database by default (`ZoneInfoNotFoundError` on `America/New_York`), fixed by adding `tzdata` to `requirements.txt` rather than hand-rolling DST math with a fixed UTC offset (which would silently drift wrong twice a year at DST transitions).
+
+**DXY monitoring added to Market Analytics** (`run_market_analytics_sweep()`) -- checked daily as context, never itself traded, per Mohamed's explicit instruction. Found and fixed a real latent bug while adding it: the sweep's per-pair loop only ever caught `RuntimeError`, but `resolve_symbol()` raises `ValueError` when a broker doesn't list a symbol at all -- a real risk for DXY specifically (not every broker lists it; Exness was previously confirmed to have no crypto symbols, DXY/USDX availability isn't guaranteed either) that would have crashed the entire sweep instead of just skipping DXY. Now catches both exception types.
+
+**`DXY_PAIR_CORRELATION` fixed and extended** (`strategy.py`): found a real gap -- `USDJPY` was documented in a comment as one of the 3 pairs explicitly named in Mohamed's own DXY notes, but was never actually added to the correlation table itself. Fixed, plus added `USDCHF`/`AUDUSD` as inferred (same USD-is-base-or-quote logic as the existing `USDCAD`/`XAUUSD` entries).
+
+**News Filter and Research expanded to match:** `PAIR_CURRENCIES` (news_filter.py) now covers all 8 pairs. `RELEVANT_CURRENCIES` (research.py) added JPY/CHF/AUD. Central bank RSS coverage extended with BOJ and SNB -- **each individually verified as a real, working feed via a live fetch before adding**, never guessed (per the hard rule against fabricating URLs). RBA was researched too (needed for AUDUSD) but is **deliberately excluded**: confirmed via a live test that its feed returns 403 Forbidden even from a direct `requests.get` with a browser user-agent, not just assumed blocked from a single check -- a real, documented gap, not silently worked around. AUD news still reaches the pipeline via the ForexFactory calendar, just without a dedicated RBA statement feed.
+
+**`check_trade_count_status()` added to Risk Management** (`MAX_TRADES_PER_DAY = 2`) -- the actual code implementation of the 2-trades/day rule above, with a distinct `review_required_before_next` status when trade 1 was a loss, `day_complete` once 2 trades are taken regardless of outcome, and `can_trade` otherwise.
+
+All 5 touched agents' `agent_registry` notes updated; two new `memory_knowledge` references published live (`TRADING_SCHEDULE_REFERENCE_TEXT` on Strategy, `TRADE_COUNT_REFERENCE_TEXT` on Risk Management) -- both write attempts also served as a real-world re-confirmation that this morning's `RateLimitError` fallback fix (see the entry above) is genuinely working in production, not just in an isolated test. Full test suite in `_tmp_verify_pairs_expansion.py`, including live fetches confirming BOJ/SNB actually return real data.
+
+**Current phase status:** Phase 5 -- structurally unchanged, this was pair-scope/schedule/discipline expansion across 5 existing agents, not new agent logic.
+
+**Next session's first task:** Continue the remaining 3-item agenda (Fixera CEO-equivalent agent, Fixera Marketing Agent, marketplace price regulation).
+
 ---
 
 ## Operational Efficiency Standard (v1.0)

@@ -6,3 +6,6 @@ openai
 resend
 requests
 MetaTrader5  # Windows-only; Forex Division's Market Analytics agent, needs a locally running MT5 terminal
+fastapi
+uvicorn
+tzdata  # Windows doesn't ship the IANA tz database by default -- needed for zoneinfo (agents/forex/_pairs.py)

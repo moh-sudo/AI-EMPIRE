@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-TRADED_PAIRS = {"EURUSD", "GBPUSD", "USDCAD", "XAUUSD", "NAS100"}
+from agents.forex._pairs import TRADED_PAIRS
 
 # String timeframe names -> MT5's own constants, resolved lazily (only
 # when MetaTrader5 is actually imported/used) so this module can be
@@ -92,7 +92,15 @@ def disconnect() -> None:
 # names that don't share a common prefix at all.
 _SYMBOL_NAME_ALIASES: dict[str, list[str]] = {
     "NAS100": ["USTEC", "NDX100", "US100"],
+    "DXY": ["USDX", "DX", "USDOLLAR"],
 }
+
+# DXY isn't traded (no entry/exit decisions made on it directly) -- it's
+# checked daily as context for the other pairs (Mohamed's own explicit
+# instruction, 2026-07-26), same spirit as dxy_bias_check() in
+# strategy.py. Kept separate from TRADED_PAIRS since it's never itself
+# a trade candidate.
+DXY_SYMBOL = "DXY"
 
 _symbol_cache: dict[str, str] = {}
 
@@ -226,10 +234,23 @@ def classify_structure(candles: list[Candle], swing_lookback: int = 5) -> Struct
 
 def run_market_analytics_sweep(pairs: Optional[set[str]] = None, timeframe: str = "H4", count: int = 200) -> dict[str, StructureResult]:
     """Live entry point: connects to MT5, pulls candles for every
-    traded pair on the given timeframe, classifies structure, logs a
-    combined report to memory_knowledge. Returns {} (never raises) if
-    MT5 isn't reachable -- same fail-safe pattern as the other agents,
-    a down data source shouldn't crash the sweep."""
+    traded pair on the given timeframe plus DXY (context only, never a
+    trade candidate -- Mohamed's own instruction, 2026-07-26, checked
+    daily since it helps read the other pairs), classifies structure,
+    logs a combined report to memory_knowledge. Returns {} (never
+    raises) if MT5 isn't reachable -- same fail-safe pattern as the
+    other agents, a down data source shouldn't crash the sweep.
+
+    Catches both RuntimeError (fetch_candles' own raise when MT5
+    returns no data) and ValueError (resolve_symbol's raise when a
+    broker simply doesn't list that symbol at all) -- the original code
+    only caught RuntimeError, which would have let an unresolvable
+    symbol crash the entire sweep instead of just skipping that one
+    instrument. Real risk for DXY specifically: not every broker lists
+    it (Exness, Mohamed's demo broker, was previously confirmed to have
+    no crypto symbols at all -- DXY/USDX availability isn't guaranteed
+    either), so this needed to degrade gracefully, not just for DXY but
+    for any future pair too."""
     from agents.forex._memory_helpers import safe_add_knowledge
 
     pairs = pairs or TRADED_PAIRS
@@ -238,24 +259,34 @@ def run_market_analytics_sweep(pairs: Optional[set[str]] = None, timeframe: str 
         return {}
 
     results: dict[str, StructureResult] = {}
+    dxy_result: Optional[StructureResult] = None
     try:
         for pair in pairs:
             try:
                 candles = fetch_candles(pair, timeframe, count)
                 results[pair] = classify_structure(candles)
-            except RuntimeError:
+            except (RuntimeError, ValueError):
                 continue
+
+        try:
+            dxy_candles = fetch_candles(DXY_SYMBOL, timeframe, count)
+            dxy_result = classify_structure(dxy_candles)
+        except (RuntimeError, ValueError):
+            dxy_result = None
     finally:
         disconnect()
 
-    if results:
-        summary = "\n".join(f"{pair}: {r.trend} ({'; '.join(r.notes)})" for pair, r in results.items())
+    if results or dxy_result:
+        lines = [f"{pair}: {r.trend} ({'; '.join(r.notes)})" for pair, r in results.items()]
+        if dxy_result:
+            lines.append(f"DXY (context only, not traded): {dxy_result.trend} ({'; '.join(dxy_result.notes)})")
+        summary = "\n".join(lines)
         safe_add_knowledge(
             division="forex",
             agent_id="forex-market-analytics-v0.1",
             content=f"Market structure sweep ({timeframe}):\n{summary}",
             source="MT5",
-            metadata={"timeframe": timeframe, "pairs": list(results.keys())},
+            metadata={"timeframe": timeframe, "pairs": list(results.keys()), "dxy_included": dxy_result is not None},
         )
 
     return results
