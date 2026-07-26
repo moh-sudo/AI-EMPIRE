@@ -37,6 +37,23 @@
     },
     {
       "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 3 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 320],
+      "id": "a1e2f3b4-1111-4a2b-9c3d-000000000004",
+      "name": "03:00 EAT (8PM NY prior day, Asian open)"
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "http://127.0.0.1:8002/run-briefing",
         "options": {}
@@ -54,6 +71,9 @@
       "main": [[{ "node": "Run Daily Briefing", "type": "main", "index": 0 }]]
     },
     "15:00 EAT (8AM NY, NY open)": {
+      "main": [[{ "node": "Run Daily Briefing", "type": "main", "index": 0 }]]
+    },
+    "03:00 EAT (8PM NY prior day, Asian open)": {
       "main": [[{ "node": "Run Daily Briefing", "type": "main", "index": 0 }]]
     }
   },
