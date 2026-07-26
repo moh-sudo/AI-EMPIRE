@@ -632,6 +632,18 @@ Mohamed listed several things to pick up next time, explicitly deferred rather t
 
 **Next session's first task:** Restart n8n and `agents/audit/server.py` (port 8001) first, before anything else, so the daily audit resumes. Then work through the 5-item agenda above in whatever order Mohamed wants to start -- none of them have any technical blocker, they're all genuinely just pending discussions/decisions, not stalled builds.
 
+### 2026-07-26 (morning) -- Restarted n8n + Audit server, caught and fixed a permanent false-Red bug
+
+Restarted both processes per the plan above (confirmed live: Audit server 200 OK on port 8001, n8n responding on port 5678 -- its `audit-agent-daily` workflow was already active from before, n8n's workflow activation state survives a process restart since it's stored in n8n's own local DB). Since both were down overnight, today's scheduled 06:00 audit never fired -- ran it manually to cover the gap instead.
+
+**That manual run came back Red.** Traced it to a single `routing_logs` row (`agent_id: test-anomaly-injector`, dated 2026-07-22) -- a synthetic row deliberately inserted back when `check_unsanitized_cloud_routing()` was first built, specifically to verify the check could detect a real violation (documented in this file's own 2026-07-23 Phase 3 entry: "each of the 4 checks individually triggered via deliberate test rows"). That row was never cleaned up afterward.
+
+**Real, permanent bug found in the process:** unlike the other 3 checks (`error_rate_24h` is 24h-windowed, `missing_audit_fields` is 24h-windowed, `stale_agent_reviews` only looks at currently-active/overdue records), `check_unsanitized_cloud_routing()` (`agents/audit/checks.py`) has **no time window at all** -- it scans the entire history of `routing_logs`. Left alone, that one 4-day-old test row would have triggered a false Red on every single future daily audit, forever. Mohamed chose to delete the stale row rather than also time-bound the check itself -- so the check's all-time lookback is being kept as intentional (any historical unsanitized-cloud-routing event of CONFIDENTIAL+ data really is worth surfacing until someone actually looks at it), but this means **any future test/synthetic data written to `routing_logs` needs to be cleaned up afterward, or it will permanently poison the daily audit the same way.**
+
+Deleted the stale row, re-ran the sweep, confirmed Green. Mohamed's own inbox will have a Red alert email from the first (uncleaned) run this morning -- that's the system correctly doing its job on the data it had at the time, safe to disregard now that the underlying cause is resolved.
+
+**Next session's first task:** Continue with the 5-item agenda from the entry above (alert-timing correction, per-pair timetable, Fixera CEO-equivalent agent, Fixera Marketing Agent, marketplace price regulation). If any future Phase testing writes synthetic rows to `routing_logs` (or similar tables the Audit Agent scans without a time window), delete them immediately afterward rather than leaving them for a future session to rediscover as a false alarm.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
