@@ -17,6 +17,7 @@ infrastructure/n8n/.n8n/
 
 # Runtime state (not source)
 agents/forex/.telegram_offset.json
+agents/fixera/.telegram_offset.json
 
 # OS
 .DS_Store

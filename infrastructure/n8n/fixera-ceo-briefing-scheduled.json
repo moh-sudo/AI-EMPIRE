@@ -1,0 +1,53 @@
+{
+  "name": "fixera-ceo-briefing-scheduled",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "id": "f1e2d3c4-5555-4a6b-9c7d-000000000001",
+      "name": "08:00 EAT (once daily, morning)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8003/run-briefing",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [208, 0],
+      "id": "f1e2d3c4-5555-4a6b-9c7d-000000000002",
+      "name": "Run Daily Briefing"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "08:00 EAT (once daily, morning)": {
+      "main": [[{ "node": "Run Daily Briefing", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f2e3d4c5-6666-4b7c-8d9e-000000000001",
+  "meta": {
+    "instanceId": "2442c103091fc3db3a62ddff01333be403ece2b2cfb7e6ba914ccc82432a7656"
+  },
+  "nodeGroups": [],
+  "id": "F1x3r4Ce0Br13f1ngSchd",
+  "tags": []
+}

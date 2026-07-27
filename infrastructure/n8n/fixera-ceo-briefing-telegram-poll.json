@@ -1,0 +1,53 @@
+{
+  "name": "fixera-ceo-briefing-telegram-poll",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "id": "a2b3c4d5-7777-4c8d-9e0f-000000000001",
+      "name": "Every 30s"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8003/check-telegram",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [208, 0],
+      "id": "a2b3c4d5-7777-4c8d-9e0f-000000000002",
+      "name": "Check Telegram For Briefing Request"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 30s": {
+      "main": [[{ "node": "Check Telegram For Briefing Request", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "a3b4c5d6-8888-4d9e-8f0a-000000000001",
+  "meta": {
+    "instanceId": "2442c103091fc3db3a62ddff01333be403ece2b2cfb7e6ba914ccc82432a7656"
+  },
+  "nodeGroups": [],
+  "id": "F1x3r4Ce0Br13f1ngP0ll",
+  "tags": []
+}
