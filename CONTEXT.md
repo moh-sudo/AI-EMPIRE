@@ -692,6 +692,14 @@ Mohamed asked about connecting TradingView (following up on an earlier "own chan
 
 **Next session's first task:** Mohamed still needs to actually configure a real Pine Script alert on TradingView pointing at this URL (webhook setup instructions are in `infrastructure/tradingview_webhook/README.md`) and confirm a genuine chart-triggered alert (not a manual curl test) delivers correctly. Otherwise: continue the remaining 3-item Fixera agenda (CEO-equivalent agent, Marketing Agent, marketplace price regulation).
 
+### 2026-07-27 -- TradingView alert setup blocked on a plan upgrade, deliberately paused
+
+Attempted to actually configure a real Pine Script alert on TradingView pointing at the live webhook. Blocked: Mohamed's TradingView account is still on the free plan, and TradingView's webhook-alert delivery has historically required a paid plan (Essential tier or above) -- the free tier doesn't support sending an alert to a webhook URL at all. Mohamed chose to hold off on upgrading for now rather than decide under pressure. Nothing else in the system depends on this working yet -- the webhook itself is fully deployed, live-tested, and correctly rejects/accepts based on the shared secret; it's just sitting idle waiting for a real TradingView alert to actually hit it.
+
+**Separately, a related Vercel/GitHub auto-deploy issue surfaced:** a docs-only commit (no code change) failed to auto-deploy, with Vercel emailing that the commit author's email isn't recognized as a team member -- despite that exact email owning the Vercel team. Mohamed correctly connected this to the still-unresolved Fixera GitHub auto-deploy issue from an earlier session (stuck install loop) -- both plausibly share the same root cause: an imperfect link between the GitHub account and Vercel team membership. Not yet investigated further -- Vercel's own suggested fix is checking Account Settings -> Authentication Settings for the GitHub connection, not yet done.
+
+**Next session's first task:** Whenever Mohamed decides on the TradingView plan, configure the real alert and confirm a genuine chart-triggered delivery. Separately, worth checking Vercel's Authentication Settings to see if fixing the GitHub-account link resolves both the new auto-deploy-rejection issue and the older stuck Fixera GitHub auto-deploy setup at the same time. Otherwise: continue the remaining 3-item Fixera agenda (CEO-equivalent agent, Marketing Agent, marketplace price regulation).
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
