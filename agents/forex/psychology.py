@@ -19,12 +19,19 @@ handwritten trading journal, not generic trading psychology advice:
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 KNOWN_DISTRACTIONS = ["phone", "gossip", "stories", "admiring", "friends", "family"]
 REVENGE_TRADE_SIGNALS = [
-    "make it back", "get it back", "double down", "chase", "revenge",
-    "angry", "furious", "need to win this one", "prove", "immediately",
+    "make it back",
+    "get it back",
+    "double down",
+    "chase",
+    "revenge",
+    "angry",
+    "furious",
+    "need to win this one",
+    "prove",
+    "immediately",
 ]
 TARGET_SLEEP_TIME = "21:30"
 TARGET_WAKE_TIME = "03:30"
@@ -81,9 +88,9 @@ class DisciplineReport:
 
 def pre_session_checkin(
     *,
-    slept_on_time: Optional[bool] = None,
-    distractions_today: Optional[str] = None,
-    emotional_state: Optional[str] = None,
+    slept_on_time: bool | None = None,
+    distractions_today: str | None = None,
+    emotional_state: str | None = None,
 ) -> DisciplineReport:
     """Runs before a trading session. Mirrors the journal's own rules:
     sleep schedule, the specific named distractions, and the four
@@ -93,20 +100,26 @@ def pre_session_checkin(
 
     if slept_on_time is False:
         flags.append("sleep_off_schedule")
-        notes.append(f"Sleep wasn't on schedule (target: asleep by {TARGET_SLEEP_TIME}, awake by {TARGET_WAKE_TIME}) -- this directly affects session quality per your own journal.")
+        notes.append(
+            f"Sleep wasn't on schedule (target: asleep by {TARGET_SLEEP_TIME}, awake by {TARGET_WAKE_TIME}) -- this directly affects session quality per your own journal."
+        )
 
     if distractions_today:
         hit = [d for d in KNOWN_DISTRACTIONS if d in distractions_today.lower()]
         if hit:
             flags.append("known_distraction_present")
-            notes.append(f"Named distraction(s) present today: {', '.join(hit)} -- these are the exact things you identified as concentration killers.")
+            notes.append(
+                f"Named distraction(s) present today: {', '.join(hit)} -- these are the exact things you identified as concentration killers."
+            )
 
     if emotional_state:
         state_lower = emotional_state.lower()
         for bad_state in ("fear", "greed", "overconfiden", "panic", "stress"):
             if bad_state in state_lower:
                 flags.append(f"emotional_state_{bad_state.rstrip('en')}")
-                notes.append(f"Emotional state includes '{bad_state}' -- one of the four things you named to avoid before trading.")
+                notes.append(
+                    f"Emotional state includes '{bad_state}' -- one of the four things you named to avoid before trading."
+                )
 
     if len(flags) >= 2:
         severity = SEVERITY_PAUSE
@@ -130,7 +143,9 @@ def post_loss_checkin(reflection: str) -> DisciplineReport:
     hit = [s for s in REVENGE_TRADE_SIGNALS if s in reflection_lower]
     if hit:
         flags.append("revenge_trade_risk")
-        notes.append(f"Language suggesting revenge-trading risk detected ({', '.join(hit)}) -- your own rule: close and look for the mistake, don't chase it back.")
+        notes.append(
+            f"Language suggesting revenge-trading risk detected ({', '.join(hit)}) -- your own rule: close and look for the mistake, don't chase it back."
+        )
 
     severity = SEVERITY_PAUSE if flags else SEVERITY_OK
     if not flags:
@@ -218,7 +233,7 @@ def run_personal_mindset_reference_publish() -> dict:
     )
 
 
-def log_checkin(report: DisciplineReport, raw_input: str, account: Optional[str] = None) -> dict:
+def log_checkin(report: DisciplineReport, raw_input: str, account: str | None = None) -> dict:
     """Writes the discipline report to memory_experience so it's part
     of the same searchable history as trades and journal entries.
     account is optional (a pre-session check-in might not be tied to

@@ -18,7 +18,7 @@ record (pair, direction, result, P&L, entry/exit, session, strategy):
 """
 
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 
 ReflectionType = Literal["mistake", "profit", "lesson", "psychology", "general"]
 TradeResult = Literal["win", "loss", "be"]
@@ -31,12 +31,12 @@ class TradeLogEntry:
     direction: str  # "buy" | "sell"
     result: TradeResult
     pnl: float
-    session: Optional[str] = None
-    strategy: Optional[str] = None
-    entry: Optional[float] = None
-    exit: Optional[float] = None
-    lot: Optional[float] = None
-    notes: Optional[str] = None
+    session: str | None = None
+    strategy: str | None = None
+    entry: float | None = None
+    exit: float | None = None
+    lot: float | None = None
+    notes: str | None = None
 
 
 def _build_trade_context(trade: TradeLogEntry) -> str:
@@ -72,9 +72,15 @@ def log_trade(trade: TradeLogEntry) -> dict:
         context=_build_trade_context(trade),
         outcome=_build_trade_outcome(trade),
         metadata={
-            "account": trade.account, "pair": trade.pair.upper(), "direction": trade.direction,
-            "result": trade.result, "pnl": trade.pnl, "session": trade.session,
-            "strategy": trade.strategy, "entry": trade.entry, "exit": trade.exit,
+            "account": trade.account,
+            "pair": trade.pair.upper(),
+            "direction": trade.direction,
+            "result": trade.result,
+            "pnl": trade.pnl,
+            "session": trade.session,
+            "strategy": trade.strategy,
+            "entry": trade.entry,
+            "exit": trade.exit,
             "lot": trade.lot,
         },
     )
@@ -85,7 +91,7 @@ def log_reflection(
     reflection_type: ReflectionType,
     title: str,
     body: str,
-    account: Optional[str] = None,
+    account: str | None = None,
     pinned: bool = False,
 ) -> dict:
     """account is optional here (unlike log_trade, where every trade

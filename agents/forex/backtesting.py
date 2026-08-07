@@ -18,7 +18,7 @@ logic, fully testable without it.
 """
 
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Literal
 
 BacktestOutcome = Literal["win", "loss", "be"]
 
@@ -29,12 +29,12 @@ class BacktestTrade:
     direction: str  # "buy" | "sell"
     result: BacktestOutcome
     pnl: float
-    entry: Optional[float] = None
-    exit: Optional[float] = None
-    stop_loss: Optional[float] = None
-    take_profit: Optional[float] = None
-    reward_to_risk: Optional[float] = None  # the R:R this specific trade actually achieved
-    setup_notes: Optional[str] = None
+    entry: float | None = None
+    exit: float | None = None
+    stop_loss: float | None = None
+    take_profit: float | None = None
+    reward_to_risk: float | None = None  # the R:R this specific trade actually achieved
+    setup_notes: str | None = None
 
 
 @dataclass
@@ -44,10 +44,10 @@ class BacktestStats:
     losses: int
     breakevens: int
     win_rate_pct: float
-    avg_reward_to_risk: Optional[float]
-    profit_factor: Optional[float]  # gross win / gross loss; None if no losses to divide by
+    avg_reward_to_risk: float | None
+    profit_factor: float | None  # gross win / gross loss; None if no losses to divide by
     total_pnl: float
-    expectancy: Optional[float]  # average P&L per trade
+    expectancy: float | None  # average P&L per trade
     notes: list[str] = field(default_factory=list)
 
 
@@ -81,9 +81,14 @@ def log_backtest_trade(trade: BacktestTrade) -> dict:
         context=_build_backtest_context(trade),
         outcome=f"{result_word} -- {sign}${trade.pnl:,.2f}",
         metadata={
-            "pair": trade.pair.upper(), "direction": trade.direction, "result": trade.result,
-            "pnl": trade.pnl, "entry": trade.entry, "exit": trade.exit,
-            "stop_loss": trade.stop_loss, "take_profit": trade.take_profit,
+            "pair": trade.pair.upper(),
+            "direction": trade.direction,
+            "result": trade.result,
+            "pnl": trade.pnl,
+            "entry": trade.entry,
+            "exit": trade.exit,
+            "stop_loss": trade.stop_loss,
+            "take_profit": trade.take_profit,
             "reward_to_risk": trade.reward_to_risk,
         },
     )
@@ -129,10 +134,15 @@ def compute_stats(trades: list[BacktestTrade]) -> BacktestStats:
     # not a number Mohamed specified -- flagged as a general heuristic,
     # not an authoritative rule from his own material.
     if total < 30:
-        notes.append(f"Only {total} trades in this sample -- a common statistical rule of thumb wants 30+ before treating a win rate or profit factor as reliable.")
+        notes.append(
+            f"Only {total} trades in this sample -- a common statistical rule of thumb wants 30+ before treating a win rate or profit factor as reliable."
+        )
 
     return BacktestStats(
-        total_trades=total, wins=len(wins), losses=len(losses), breakevens=len(breakevens),
+        total_trades=total,
+        wins=len(wins),
+        losses=len(losses),
+        breakevens=len(breakevens),
         win_rate_pct=round(win_rate, 2),
         avg_reward_to_risk=round(avg_rr, 2) if avg_rr is not None else None,
         profit_factor=round(profit_factor, 2) if profit_factor is not None else None,
@@ -163,7 +173,9 @@ def run_backtest_stats_publish(trades: list[BacktestTrade]) -> dict:
         content=summary,
         source="backtest_stats",
         metadata={
-            "total_trades": stats.total_trades, "win_rate_pct": stats.win_rate_pct,
-            "profit_factor": stats.profit_factor, "expectancy": stats.expectancy,
+            "total_trades": stats.total_trades,
+            "win_rate_pct": stats.win_rate_pct,
+            "profit_factor": stats.profit_factor,
+            "expectancy": stats.expectancy,
         },
     )

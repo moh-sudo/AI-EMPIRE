@@ -12,8 +12,8 @@ scope is triage and flagging only, never an autonomous action.
 
 from collections import Counter
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 SLA_ESCALATION_HOURS = 48  # a dispute open this long without resolution gets flagged
 FRAUD_REVIEW_COUNT_THRESHOLD = 3  # this many low ratings for one reviewee in the window below
@@ -27,10 +27,10 @@ class DisputeTriage:
     reason: str
 
 
-def triage_dispute(dispute: dict[str, Any], now: Optional[datetime] = None) -> DisputeTriage:
+def triage_dispute(dispute: dict[str, Any], now: datetime | None = None) -> DisputeTriage:
     """Flags disputes at risk of breaching SLA. Never rules on a dispute --
     ruling is a human/admin decision (dispute.ruling stays untouched)."""
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     if dispute.get("status") in ("resolved",):
         return DisputeTriage(dispute["id"], "routine", "already resolved")
 
@@ -43,9 +43,15 @@ def triage_dispute(dispute: dict[str, Any], now: Optional[datetime] = None) -> D
 
     age = now - submitted_at
     if age > timedelta(hours=SLA_ESCALATION_HOURS):
-        return DisputeTriage(dispute["id"], "overdue", f"open {age.total_seconds() / 3600:.1f}h, exceeds {SLA_ESCALATION_HOURS}h SLA")
+        return DisputeTriage(
+            dispute["id"], "overdue", f"open {age.total_seconds() / 3600:.1f}h, exceeds {SLA_ESCALATION_HOURS}h SLA"
+        )
     if age > timedelta(hours=SLA_ESCALATION_HOURS * 0.75):
-        return DisputeTriage(dispute["id"], "sla_risk", f"open {age.total_seconds() / 3600:.1f}h, approaching {SLA_ESCALATION_HOURS}h SLA")
+        return DisputeTriage(
+            dispute["id"],
+            "sla_risk",
+            f"open {age.total_seconds() / 3600:.1f}h, approaching {SLA_ESCALATION_HOURS}h SLA",
+        )
     return DisputeTriage(dispute["id"], "routine", "within SLA window")
 
 
@@ -59,14 +65,14 @@ class FraudSignal:
 
 def detect_review_pattern_signals(
     reviews: list[dict[str, Any]],
-    now: Optional[datetime] = None,
+    now: datetime | None = None,
     low_rating_threshold: int = 2,
 ) -> list[FraudSignal]:
     """Flags reviewees (not reviewers -- rating patterns targeting one
     partner/customer) with an unusual cluster of low ratings in a short
     window. This is a signal to surface for human review, never an
     automatic penalty -- matches the agent's Boundaries."""
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     window_start = now - timedelta(days=FRAUD_REVIEW_WINDOW_DAYS)
 
     recent_low_ratings: Counter[tuple[str, str]] = Counter()
@@ -84,24 +90,28 @@ def detect_review_pattern_signals(
     signals = []
     for (reviewee_id, reviewee_type), count in recent_low_ratings.items():
         if count >= FRAUD_REVIEW_COUNT_THRESHOLD:
-            signals.append(FraudSignal(
-                reviewee_id, reviewee_type, count,
-                f"{count} ratings <= {low_rating_threshold} within {FRAUD_REVIEW_WINDOW_DAYS} days",
-            ))
+            signals.append(
+                FraudSignal(
+                    reviewee_id,
+                    reviewee_type,
+                    count,
+                    f"{count} ratings <= {low_rating_threshold} within {FRAUD_REVIEW_WINDOW_DAYS} days",
+                )
+            )
     return signals
 
 
 def workers_due_for_kyc_reverification(
     workers: list[dict[str, Any]],
     reverification_interval_days: int = 365,
-    now: Optional[datetime] = None,
+    now: datetime | None = None,
 ) -> list[dict[str, Any]]:
     """Flags verified workers whose verification is old enough to warrant
     re-checking. Uses `created_at` as a stand-in for last-verified date
     since ai_empire_workers_summary doesn't expose a dedicated
     verification-date column -- a real implementation would need that
     added to the view."""
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     cutoff = now - timedelta(days=reverification_interval_days)
     due = []
     for worker in workers:

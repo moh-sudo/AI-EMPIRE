@@ -15,8 +15,8 @@ authorize payment.
 """
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 SLA_HOURS_BY_PRIORITY = {
     "urgent": 4,
@@ -35,10 +35,10 @@ class TicketTriage:
     hours_open: float
 
 
-def triage_ticket(ticket: dict[str, Any], now: Optional[datetime] = None) -> TicketTriage:
+def triage_ticket(ticket: dict[str, Any], now: datetime | None = None) -> TicketTriage:
     """SLA status for an open support ticket. Closed/resolved tickets are
     always within_sla regardless of age."""
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     priority = ticket.get("priority") or DEFAULT_PRIORITY
     sla_hours = SLA_HOURS_BY_PRIORITY.get(priority, SLA_HOURS_BY_PRIORITY[DEFAULT_PRIORITY])
 
@@ -61,10 +61,10 @@ def triage_ticket(ticket: dict[str, Any], now: Optional[datetime] = None) -> Tic
     return TicketTriage(ticket["id"], priority, sla_status, round(hours_open, 1))
 
 
-def prioritize_queue(tickets: list[dict[str, Any]], now: Optional[datetime] = None) -> list[TicketTriage]:
+def prioritize_queue(tickets: list[dict[str, Any]], now: datetime | None = None) -> list[TicketTriage]:
     """Sorts open tickets by SLA urgency: breached first, then at_risk,
     then within_sla, each ordered by hours open (longest-waiting first)."""
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     status_rank = {"breached": 0, "at_risk": 1, "within_sla": 2}
     triaged = [triage_ticket(t, now) for t in tickets if t.get("status") not in ("resolved", "closed")]
     return sorted(triaged, key=lambda t: (status_rank[t.sla_status], -t.hours_open))

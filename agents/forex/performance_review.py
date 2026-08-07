@@ -20,7 +20,6 @@ when it can't verify something, and always explains its reasoning.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 # General statistical heuristic, same one Backtesting uses -- not a
 # number Mohamed specified.
@@ -38,9 +37,9 @@ class AccountEdgeStats:
     losses: int
     breakevens: int
     win_rate_pct: float
-    profit_factor: Optional[float]
+    profit_factor: float | None
     total_pnl: float
-    expectancy: Optional[float]
+    expectancy: float | None
 
 
 @dataclass
@@ -107,15 +106,18 @@ def compute_edge_stats(trades: list[dict]) -> AccountEdgeStats:
     total = len(trades)
     win_rate = (wins / total) * 100 if total else 0.0
 
-    gross_win = sum(p for p, res in zip(pnls, results) if res == "win")
-    gross_loss = abs(sum(p for p, res in zip(pnls, results) if res == "loss"))
+    gross_win = sum(p for p, res in zip(pnls, results, strict=True) if res == "win")
+    gross_loss = abs(sum(p for p, res in zip(pnls, results, strict=True) if res == "loss"))
     profit_factor = (gross_win / gross_loss) if gross_loss > 0 else None
 
     total_pnl = sum(pnls)
     expectancy = total_pnl / total if total else None
 
     return AccountEdgeStats(
-        total_trades=total, wins=wins, losses=losses, breakevens=breakevens,
+        total_trades=total,
+        wins=wins,
+        losses=losses,
+        breakevens=breakevens,
         win_rate_pct=round(win_rate, 2),
         profit_factor=round(profit_factor, 2) if profit_factor is not None else None,
         total_pnl=round(total_pnl, 2),
@@ -136,7 +138,10 @@ def compute_psychology_compliance(checkins: list[dict]) -> PsychologyComplianceS
     pause_rate = (pause / total) * 100 if total else 0.0
 
     return PsychologyComplianceStats(
-        total_checkins=total, ok_count=ok, caution_count=caution, pause_count=pause,
+        total_checkins=total,
+        ok_count=ok,
+        caution_count=caution,
+        pause_count=pause,
         pause_rate_pct=round(pause_rate, 2),
     )
 
@@ -156,24 +161,38 @@ def assess_readiness(
 
     if edge_stats.total_trades < min_trades:
         ready = False
-        reasons.append(f"Only {edge_stats.total_trades} logged trades -- need at least {min_trades} for a reliable sample.")
+        reasons.append(
+            f"Only {edge_stats.total_trades} logged trades -- need at least {min_trades} for a reliable sample."
+        )
 
     if edge_stats.profit_factor is None or edge_stats.profit_factor <= 1.0:
         ready = False
-        pf_display = edge_stats.profit_factor if edge_stats.profit_factor is not None else "undefined (no losses or no wins yet)"
-        reasons.append(f"Profit factor is {pf_display} -- needs to be reliably above 1.0 before this counts as a working edge.")
+        pf_display = (
+            edge_stats.profit_factor if edge_stats.profit_factor is not None else "undefined (no losses or no wins yet)"
+        )
+        reasons.append(
+            f"Profit factor is {pf_display} -- needs to be reliably above 1.0 before this counts as a working edge."
+        )
 
     if psychology_stats.total_checkins == 0:
         ready = False
-        reasons.append("No psychology check-ins logged yet -- discipline compliance can't be assessed without any history.")
+        reasons.append(
+            "No psychology check-ins logged yet -- discipline compliance can't be assessed without any history."
+        )
     elif psychology_stats.pause_rate_pct > MAX_ACCEPTABLE_PSYCHOLOGY_PAUSE_RATE_PCT:
         ready = False
-        reasons.append(f"{psychology_stats.pause_rate_pct}% of check-ins hit 'pause' -- above the {MAX_ACCEPTABLE_PSYCHOLOGY_PAUSE_RATE_PCT}% threshold, discipline isn't consistent yet.")
+        reasons.append(
+            f"{psychology_stats.pause_rate_pct}% of check-ins hit 'pause' -- above the {MAX_ACCEPTABLE_PSYCHOLOGY_PAUSE_RATE_PCT}% threshold, discipline isn't consistent yet."
+        )
 
     if ready:
-        reasons.append(f"{edge_stats.total_trades} trades, profit factor {edge_stats.profit_factor}, psychology pause rate {psychology_stats.pause_rate_pct}% -- all thresholds met.")
+        reasons.append(
+            f"{edge_stats.total_trades} trades, profit factor {edge_stats.profit_factor}, psychology pause rate {psychology_stats.pause_rate_pct}% -- all thresholds met."
+        )
 
-    return ReadinessAssessment(account=account, ready=ready, edge_stats=edge_stats, psychology_stats=psychology_stats, reasons=reasons)
+    return ReadinessAssessment(
+        account=account, ready=ready, edge_stats=edge_stats, psychology_stats=psychology_stats, reasons=reasons
+    )
 
 
 def run_performance_review(account: str) -> ReadinessAssessment:
@@ -204,8 +223,10 @@ def run_performance_review(account: str) -> ReadinessAssessment:
         content=summary,
         source="performance_review",
         metadata={
-            "account": account, "ready": assessment.ready,
-            "total_trades": edge_stats.total_trades, "profit_factor": edge_stats.profit_factor,
+            "account": account,
+            "ready": assessment.ready,
+            "total_trades": edge_stats.total_trades,
+            "profit_factor": edge_stats.profit_factor,
             "psychology_pause_rate_pct": psychology_stats.pause_rate_pct,
         },
     )

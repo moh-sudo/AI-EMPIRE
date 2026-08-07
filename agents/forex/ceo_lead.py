@@ -16,7 +16,6 @@ rather than being silently resolved either way.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 GATE_PROCEED = "proceed"
 GATE_PAUSE = "pause"
@@ -60,7 +59,7 @@ def evaluate_execution_gate(inputs: list[GateInput]) -> ExecutionGateResult:
     return ExecutionGateResult(verdict=GATE_PAUSE, inputs=inputs, reasons=reasons)
 
 
-def check_cross_agent_agreement(strategy_trend: Optional[str], market_analytics_trend: Optional[str]) -> Optional[str]:
+def check_cross_agent_agreement(strategy_trend: str | None, market_analytics_trend: str | None) -> str | None:
     """Deadlock Protocol trigger: a genuine Logic Disagreement between
     two agents reasoning about the same underlying fact (e.g. Strategy
     asserts a bullish bias but Market Analytics' independently-
@@ -121,7 +120,9 @@ def run_daily_briefing() -> dict:
 
         structure_results = run_market_analytics_sweep()
         if structure_results:
-            sections.append("MARKET ANALYTICS:\n" + "\n".join(f"  {pair}: {r.trend}" for pair, r in structure_results.items()))
+            sections.append(
+                "MARKET ANALYTICS:\n" + "\n".join(f"  {pair}: {r.trend}" for pair, r in structure_results.items())
+            )
         else:
             sections.append("MARKET ANALYTICS: unavailable (MT5 not connected).")
     except Exception as e:
@@ -181,7 +182,7 @@ def _chunk_for_telegram(text: str, limit: int = TELEGRAM_MESSAGE_LIMIT) -> list[
                 current = part
             else:
                 for i in range(0, len(part), limit):
-                    chunks.append(part[i:i + limit])
+                    chunks.append(part[i : i + limit])
                 current = ""
     if current:
         chunks.append(current)

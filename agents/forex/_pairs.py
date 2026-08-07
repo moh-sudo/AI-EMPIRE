@@ -16,7 +16,6 @@ a pairs concern.
 """
 
 from datetime import datetime
-from typing import Optional
 from zoneinfo import ZoneInfo
 
 ALL_WEEKDAYS = {"Mon", "Tue", "Wed", "Thu", "Fri"}
@@ -53,7 +52,7 @@ def current_ny_weekday() -> str:
     return _WEEKDAY_NAMES[datetime.now(NY_TZ).weekday()]
 
 
-def is_pair_tradeable_today(pair: str, weekday: Optional[str] = None) -> bool:
+def is_pair_tradeable_today(pair: str, weekday: str | None = None) -> bool:
     """weekday defaults to today's actual NY weekday if not given.
     Returns False for any pair not in PAIR_TRADING_DAYS at all, same
     fail-closed spirit as the rest of this division -- an unrecognized

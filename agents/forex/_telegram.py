@@ -37,7 +37,11 @@ def send_telegram(message: str, token_env: str, chat_id_env: str = "TELEGRAM_CHA
         from agents.forex._memory_helpers import safe_add_experience
 
         safe_add_experience(
-            division="forex", agent_id="forex-telegram", event_type="telegram_send_failed",
-            context=message, outcome="failed", metadata={"error": str(e), "token_env": token_env},
+            division="forex",
+            agent_id="forex-telegram",
+            event_type="telegram_send_failed",
+            context=message,
+            outcome="failed",
+            metadata={"error": str(e), "token_env": token_env},
         )
         return {"sent": False, "reason": str(e)}

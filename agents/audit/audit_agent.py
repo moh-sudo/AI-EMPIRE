@@ -10,17 +10,16 @@ don't require an LLM in the loop.
 import argparse
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
+from agents.audit.checks import SEVERITY_CRITICAL, Finding, run_all_checks
 from shared.audit.incidents import log_incident
 from shared.db import get_client
 from shared.notifications.resend_client import send_email
-
-from agents.audit.checks import SEVERITY_CRITICAL, Finding, run_all_checks
 
 MOHAMED_EMAIL = "mohamed2002shukri@gmail.com"
 AGENT_ID = "audit-agent-v0.1"
@@ -38,7 +37,7 @@ def classify_report(findings: list[Finding]) -> str:
 def build_report(findings: list[Finding]) -> dict:
     return {
         "report_id": str(uuid.uuid4()),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "status": classify_report(findings),
         "findings": [
             {
@@ -57,14 +56,16 @@ def save_report(report: dict) -> dict:
     result = (
         get_client()
         .table("audit_vault")
-        .insert({
-            "agent_id": AGENT_ID,
-            "division": DIVISION,
-            "action": "daily_audit_sweep",
-            "outcome": report["status"],
-            "data_classification": "INTERNAL",
-            "metadata": report,
-        })
+        .insert(
+            {
+                "agent_id": AGENT_ID,
+                "division": DIVISION,
+                "action": "daily_audit_sweep",
+                "outcome": report["status"],
+                "data_classification": "INTERNAL",
+                "metadata": report,
+            }
+        )
         .execute()
     )
     return result.data[0]
@@ -72,15 +73,12 @@ def save_report(report: dict) -> dict:
 
 def email_report(report: dict) -> None:
     triggered = [f for f in report["findings"] if f["triggered"]]
-    rows = "".join(
-        f"<li><b>{f['check']}</b> ({f['severity']}) — {f['count']} finding(s)</li>"
-        for f in triggered
-    )
+    rows = "".join(f"<li><b>{f['check']}</b> ({f['severity']}) — {f['count']} finding(s)</li>" for f in triggered)
     html = f"""
-    <h2>Audit Report — {report['status']}</h2>
-    <p>Generated: {report['generated_at']}</p>
+    <h2>Audit Report — {report["status"]}</h2>
+    <p>Generated: {report["generated_at"]}</p>
     <ul>{rows}</ul>
-    <p>Report ID: {report['report_id']}</p>
+    <p>Report ID: {report["report_id"]}</p>
     """
     send_email(
         to=MOHAMED_EMAIL,

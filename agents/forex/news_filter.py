@@ -11,8 +11,8 @@ it; this agent adds the urgency window and the pair-level gate check.
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Literal, Optional
+from datetime import UTC, datetime
+from typing import Literal
 
 import requests
 
@@ -40,7 +40,7 @@ class NewsGateResult:
     pair: str
     should_pause: bool
     imminent_events: list[CalendarEvent] = field(default_factory=list)
-    checked_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    checked_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     data_unavailable: bool = False  # True means "couldn't verify", not "confirmed clear"
 
 
@@ -54,7 +54,7 @@ def _is_imminent(event: CalendarEvent, now: datetime, within_minutes: int) -> bo
 def should_pause_for_news(
     pair: str,
     within_minutes: int = DEFAULT_WINDOW_MINUTES,
-    events: Optional[list[CalendarEvent]] = None,
+    events: list[CalendarEvent] | None = None,
 ) -> NewsGateResult:
     """The actual gate check -- callable by Entry & Exit or the
     CEO/Lead agent before a trade proceeds. events param lets callers
@@ -68,7 +68,7 @@ def should_pause_for_news(
     unknown-state caution."""
     pair_upper = pair.upper()
     currencies = PAIR_CURRENCIES.get(pair_upper, set())
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     if events is None:
         try:
@@ -77,7 +77,8 @@ def should_pause_for_news(
             return NewsGateResult(pair=pair_upper, should_pause=True, checked_at=now, data_unavailable=True)
 
     imminent = [
-        e for e in events
+        e
+        for e in events
         if e.country in currencies and e.impact in ALERT_IMPACT_LEVELS and _is_imminent(e, now, within_minutes)
     ]
 
@@ -111,9 +112,11 @@ def run_news_check_sweep(within_minutes: int = DEFAULT_WINDOW_MINUTES) -> list[N
         events = []
         fetch_failed = True
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if fetch_failed:
-        results = [NewsGateResult(pair=p, should_pause=True, checked_at=now, data_unavailable=True) for p in PAIR_CURRENCIES]
+        results = [
+            NewsGateResult(pair=p, should_pause=True, checked_at=now, data_unavailable=True) for p in PAIR_CURRENCIES
+        ]
     else:
         results = [should_pause_for_news(pair, within_minutes, events=events) for pair in PAIR_CURRENCIES]
 
@@ -188,7 +191,14 @@ def run_news_trading_reference_publish() -> dict:
     )
 
 
-IndicatorName = Literal["ism_services_pmi", "nfp_employment_change", "cpi_core", "unemployment_rate", "unemployment_claims", "avg_hourly_earnings"]
+IndicatorName = Literal[
+    "ism_services_pmi",
+    "nfp_employment_change",
+    "cpi_core",
+    "unemployment_rate",
+    "unemployment_claims",
+    "avg_hourly_earnings",
+]
 
 # direction: "beat" (better for USD) / "miss" (worse for USD) / "inline"
 _HIGHER_IS_USD_BULLISH = {"ism_services_pmi", "nfp_employment_change", "cpi_core", "avg_hourly_earnings"}
@@ -208,12 +218,26 @@ def interpret_indicator_surprise(indicator: IndicatorName, actual: float, foreca
     elif indicator in _HIGHER_IS_USD_BULLISH:
         surprise = "beat" if actual > forecast else "miss"
     elif indicator in _HIGHER_IS_USD_BEARISH:
-        surprise = "beat" if actual < forecast else "miss"  # "beat" here means better-for-USD (fewer claims/lower unemployment)
+        surprise = (
+            "beat" if actual < forecast else "miss"
+        )  # "beat" here means better-for-USD (fewer claims/lower unemployment)
     else:
-        return {"surprise": "unknown_indicator", "usd_direction": None, "xauusd_direction": None, "eur_gbp_direction": None, "notes": [f"'{indicator}' isn't one of the documented indicators."]}
+        return {
+            "surprise": "unknown_indicator",
+            "usd_direction": None,
+            "xauusd_direction": None,
+            "eur_gbp_direction": None,
+            "notes": [f"'{indicator}' isn't one of the documented indicators."],
+        }
 
     if surprise == "inline":
-        return {"surprise": "inline", "usd_direction": None, "xauusd_direction": None, "eur_gbp_direction": None, "notes": ["Actual matched forecast -- no directional call per the documented rules."]}
+        return {
+            "surprise": "inline",
+            "usd_direction": None,
+            "xauusd_direction": None,
+            "eur_gbp_direction": None,
+            "notes": ["Actual matched forecast -- no directional call per the documented rules."],
+        }
 
     usd_direction = "strengthens" if surprise == "beat" else "weakens"
     xauusd_direction = "down" if surprise == "beat" else "up"
@@ -224,7 +248,9 @@ def interpret_indicator_surprise(indicator: IndicatorName, actual: float, foreca
         "usd_direction": usd_direction,
         "xauusd_direction": xauusd_direction,
         "eur_gbp_direction": eur_gbp_direction,
-        "notes": [f"{indicator}: actual {actual} vs forecast {forecast} ({surprise} for USD) -> USD {usd_direction}, XAUUSD likely {xauusd_direction}, EURUSD/GBPUSD likely {eur_gbp_direction}."],
+        "notes": [
+            f"{indicator}: actual {actual} vs forecast {forecast} ({surprise} for USD) -> USD {usd_direction}, XAUUSD likely {xauusd_direction}, EURUSD/GBPUSD likely {eur_gbp_direction}."
+        ],
     }
 
 
@@ -237,7 +263,7 @@ class PostNewsReentryStatus:
 
 def post_news_reentry_status(
     event_time: datetime,
-    now: Optional[datetime] = None,
+    now: datetime | None = None,
     fake_move_minutes: float = 2.0,
     confirmation_minutes: float = 5.0,
 ) -> PostNewsReentryStatus:
@@ -250,13 +276,33 @@ def post_news_reentry_status(
     structure-confirmation step (BOS/CHoCH, zone retest), same as
     should_pause_for_news() only ever pauses/doesn't-pause on imminent
     events, never confirms a trade is good on its own."""
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     minutes_elapsed = (now - event_time).total_seconds() / 60
 
     if minutes_elapsed < 0:
-        return PostNewsReentryStatus(phase="fake_move_window", minutes_elapsed=minutes_elapsed, notes=["Event hasn't happened yet."])
+        return PostNewsReentryStatus(
+            phase="fake_move_window", minutes_elapsed=minutes_elapsed, notes=["Event hasn't happened yet."]
+        )
     if minutes_elapsed < fake_move_minutes:
-        return PostNewsReentryStatus(phase="fake_move_window", minutes_elapsed=minutes_elapsed, notes=[f"Only {minutes_elapsed:.1f} min since release -- this is the documented fake-move/stop-hunt window, do not act on it."])
+        return PostNewsReentryStatus(
+            phase="fake_move_window",
+            minutes_elapsed=minutes_elapsed,
+            notes=[
+                f"Only {minutes_elapsed:.1f} min since release -- this is the documented fake-move/stop-hunt window, do not act on it."
+            ],
+        )
     if minutes_elapsed < confirmation_minutes:
-        return PostNewsReentryStatus(phase="confirmation_window", minutes_elapsed=minutes_elapsed, notes=[f"{minutes_elapsed:.1f} min since release -- wait for the first candle to close and for real structure confirmation before entering."])
-    return PostNewsReentryStatus(phase="clear_for_structure_check", minutes_elapsed=minutes_elapsed, notes=[f"{minutes_elapsed:.1f} min since release -- past the fake-move window; still needs its own structure confirmation (BOS/CHoCH, zone retest) before entering, not an automatic green light."])
+        return PostNewsReentryStatus(
+            phase="confirmation_window",
+            minutes_elapsed=minutes_elapsed,
+            notes=[
+                f"{minutes_elapsed:.1f} min since release -- wait for the first candle to close and for real structure confirmation before entering."
+            ],
+        )
+    return PostNewsReentryStatus(
+        phase="clear_for_structure_check",
+        minutes_elapsed=minutes_elapsed,
+        notes=[
+            f"{minutes_elapsed:.1f} min since release -- past the fake-move window; still needs its own structure confirmation (BOS/CHoCH, zone retest) before entering, not an automatic green light."
+        ],
+    )

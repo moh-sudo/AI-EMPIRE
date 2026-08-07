@@ -1,0 +1,27 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        # Absolute venv path, not the bare command or a relative
+        # path -- ruff isn't reliably on PATH for a subprocess even
+        # when installed in this venv (same class of issue found
+        # live 2026-08-03 with pip-audit), and a relative
+        # .venv/Scripts/... path didn't resolve correctly under
+        # pre-commit's own subprocess invocation on Windows either.
+        entry: C:/moh-sudo/.venv/Scripts/ruff.exe check
+        language: system
+        types: [python]
+
+      - id: ruff-format-check
+        name: ruff format --check
+        entry: C:/moh-sudo/.venv/Scripts/ruff.exe format --check
+        language: system
+        types: [python]
+
+      - id: secret-scan
+        name: secret scan (infrastructure/scripts/secret_scan.py)
+        entry: C:/moh-sudo/.venv/Scripts/python.exe infrastructure/scripts/secret_scan.py
+        language: system
+        pass_filenames: false
+        always_run: true

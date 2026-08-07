@@ -1,8 +1,7 @@
 import hashlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from shared.audit.incidents import log_incident
 from shared.db import get_client
@@ -26,7 +25,7 @@ def _read_prompt_file(file_path: str) -> dict:
     full_path = Path(file_path)
     if not full_path.is_absolute():
         full_path = REPO_ROOT / file_path
-    with open(full_path, "r", encoding="utf-8") as f:
+    with open(full_path, encoding="utf-8") as f:
         prompt = json.load(f)
     missing = [s for s in REQUIRED_SECTIONS if s not in prompt]
     if missing:
@@ -40,7 +39,7 @@ def register_prompt(
     division: str,
     version: str,
     file_path: str,
-    approved_by: Optional[str] = None,
+    approved_by: str | None = None,
 ) -> dict:
     """Registers a prompt module's current Boundaries hash as the
     approved baseline. Call this deliberately, after governance review —
@@ -59,7 +58,7 @@ def register_prompt(
                 "file_path": file_path,
                 "boundaries_hash": boundaries_hash,
                 "approved_by": approved_by,
-                "approved_date": datetime.now(timezone.utc).isoformat() if approved_by else None,
+                "approved_date": datetime.now(UTC).isoformat() if approved_by else None,
             },
             on_conflict="agent_id,version",
         )
@@ -105,8 +104,7 @@ def load_prompt(*, agent_id: str, version: str) -> dict:
             ),
         )
         raise ImmutableCoreTamperedError(
-            f"Boundaries section of {registry_entry['file_path']} has changed "
-            f"since approval; refusing to load."
+            f"Boundaries section of {registry_entry['file_path']} has changed since approval; refusing to load."
         )
 
     return prompt

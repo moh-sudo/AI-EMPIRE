@@ -1,0 +1,53 @@
+{
+  "name": "personal-morning-brief-scheduled",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "id": "d5e6f7a8-1111-4a1b-9c1d-000000000001",
+      "name": "07:00 EAT (once daily, morning)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8004/run-morning-brief",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [208, 0],
+      "id": "d5e6f7a8-1111-4a1b-9c1d-000000000002",
+      "name": "Run Morning Brief"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "07:00 EAT (once daily, morning)": {
+      "main": [[{ "node": "Run Morning Brief", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d6e7f8a9-2222-4b1c-8d1e-000000000001",
+  "meta": {
+    "instanceId": "2442c103091fc3db3a62ddff01333be403ece2b2cfb7e6ba914ccc82432a7656"
+  },
+  "nodeGroups": [],
+  "id": "P3rs0n4lBr13fSchd",
+  "tags": []
+}

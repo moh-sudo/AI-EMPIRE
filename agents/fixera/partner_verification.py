@@ -22,7 +22,7 @@ actually captures into service_details.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 
 def _get(d: Any, path: str) -> Any:
@@ -40,7 +40,7 @@ def _present(record: dict[str, Any], path: str) -> bool:
     return bool(_get(record, path))
 
 
-def _min_count(record: dict[str, Any], path: str, min_items: int, required_key: Optional[str] = None) -> bool:
+def _min_count(record: dict[str, Any], path: str, min_items: int, required_key: str | None = None) -> bool:
     """For array fields (crew, references, multi-select chips). If
     required_key is given, counts only elements where that nested key
     is truthy (e.g. references with both name and phone filled)."""
@@ -237,13 +237,34 @@ def check_partner(record: dict[str, Any]) -> VerificationFlag:
     return VerificationFlag(partner_id=record["id"], partner_role=role, missing=missing)
 
 
+def _is_self_referential_test_data(partner_id: str, bookings: list[dict[str, Any]]) -> bool:
+    """True if this partner has any booking where customer_id equals
+    worker_id (the same account booking a service from itself) -- a
+    real customer/worker pair can never produce that, so it's a
+    reliable signature of dev/test data rather than a genuine
+    unverified partner.
+
+    Found via a real live investigation (2026-07-31): the one partner
+    this agent had been flagging turned out to be Mohamed's own
+    dev-testing account (full_name "Mohamed", 0 real jobs, a single
+    self-booked test booking dated 2026-05-30), not an actual
+    compliance gap. Excluded here -- a read-side filter only -- per
+    Mohamed's explicit instruction not to touch production data; the
+    underlying record's verification_status is left exactly as-is."""
+    return any(b.get("customer_id") == partner_id and b.get("worker_id") == partner_id for b in bookings)
+
+
 def run_verification_sweep() -> list[VerificationFlag]:
     """Live entry point: fetches every completed-onboarding partner via
     the Fixera connector and returns only the ones with something
     missing or stale, for Mohamed's review. Clean partners are omitted,
-    not auto-approved -- this agent never changes verification_status."""
+    not auto-approved -- this agent never changes verification_status.
+    Partners whose only linked booking is self-referential (see
+    _is_self_referential_test_data) are also excluded -- known dev/test
+    artifacts, not real compliance gaps."""
     from shared.fixera_connector import fetch_all
 
     partners = fetch_all("partner_verification")
+    bookings = fetch_all("bookings")
     flags = [check_partner(p) for p in partners]
-    return [f for f in flags if not f.is_clean]
+    return [f for f in flags if not f.is_clean and not _is_self_referential_test_data(f.partner_id, bookings)]

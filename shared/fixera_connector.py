@@ -1,12 +1,12 @@
 """Scoped, read-only connector to Fixera's production database.
 
 Connects as the ai_empire_reader Postgres role, which has SELECT-only
-access to exactly 10 narrow views (ai_empire_bookings_summary,
+access to exactly 11 narrow views (ai_empire_bookings_summary,
 ai_empire_payments_summary, ai_empire_disputes_summary,
 ai_empire_reviews_summary, ai_empire_workers_summary,
 ai_empire_tickets_summary, ai_empire_partner_verification_summary,
 ai_empire_schema_columns_summary, ai_empire_schema_triggers_summary,
-ai_empire_schema_views_summary) -- see
+ai_empire_schema_views_summary, ai_empire_products_summary) -- see
 infrastructure/fixera_connector_reference.sql for the view definitions
 and what's deliberately excluded (PII, OTPs, national IDs, free-text
 statements/messages, etc.) and CONTEXT.md's "Fixera Relationship"
@@ -27,7 +27,7 @@ drift detection between documented and actual schema.
 
 import os
 import time
-from typing import Any, Optional
+from typing import Any
 
 import psycopg2
 import psycopg2.extras
@@ -83,16 +83,17 @@ _ALLOWED_VIEWS = {
     "schema_columns": "ai_empire_schema_columns_summary",
     "schema_triggers": "ai_empire_schema_triggers_summary",
     "schema_views": "ai_empire_schema_views_summary",
+    "products": "ai_empire_products_summary",
 }
 
 
-def fetch_all(resource: str, limit: Optional[int] = None) -> list[dict[str, Any]]:
+def fetch_all(resource: str, limit: int | None = None) -> list[dict[str, Any]]:
     """resource is one of the keys in _ALLOWED_VIEWS ('bookings',
     'payments', 'disputes', 'reviews', 'workers', 'tickets',
     'partner_verification', 'schema_columns', 'schema_triggers',
-    'schema_views') -- deliberately not a raw SQL passthrough, so
-    callers can't accidentally query outside the 10 sanctioned
-    views."""
+    'schema_views', 'products') -- deliberately not a raw SQL
+    passthrough, so callers can't accidentally query outside the 11
+    sanctioned views."""
     if resource not in _ALLOWED_VIEWS:
         raise ValueError(f"Unknown Fixera resource '{resource}'. Allowed: {sorted(_ALLOWED_VIEWS)}")
 

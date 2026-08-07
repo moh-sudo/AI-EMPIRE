@@ -13,7 +13,7 @@ execute, not executing them directly.
 """
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 DEFAULT_APPROVAL_THRESHOLD = 5000  # KSh, per the Escalation Ladder's stated
 # current approval_matrix value. Always passed as a parameter -- never
@@ -57,8 +57,8 @@ def classify_transaction(
 def classify_batch(
     payments: list[dict[str, Any]],
     threshold: float = DEFAULT_APPROVAL_THRESHOLD,
-    disputed_ref_ids: Optional[set[str]] = None,
-    fraud_flagged_ids: Optional[set[str]] = None,
+    disputed_ref_ids: set[str] | None = None,
+    fraud_flagged_ids: set[str] | None = None,
 ) -> list[tuple[dict[str, Any], TransactionDecision]]:
     """Classify a batch of payments. disputed_ref_ids/fraud_flagged_ids
     are sets of payment `ref_id` values the caller already knows about
@@ -93,9 +93,7 @@ def run_classification_sweep(threshold: float = DEFAULT_APPROVAL_THRESHOLD) -> l
     # instead of a booking) -- safe in practice since these are UUIDs and
     # cross-type collision is not realistically possible, but worth
     # tightening to a ref_type=='booking' filter if this gets extended.
-    open_dispute_booking_ids = {
-        d.get("booking_id") for d in disputes if d.get("status") not in ("resolved",)
-    }
+    open_dispute_booking_ids = {d.get("booking_id") for d in disputes if d.get("status") not in ("resolved",)}
 
     results = []
     for payment, decision in classify_batch(payments, threshold=threshold, disputed_ref_ids=open_dispute_booking_ids):

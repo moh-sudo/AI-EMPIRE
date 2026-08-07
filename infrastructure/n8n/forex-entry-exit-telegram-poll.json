@@ -1,0 +1,53 @@
+{
+  "name": "forex-entry-exit-telegram-poll",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds",
+              "secondsInterval": 30
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "id": "c4d5e6f7-9999-4e9e-9f0a-000000000001",
+      "name": "Every 30s"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8002/check-entry-exit-telegram",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [208, 0],
+      "id": "c4d5e6f7-9999-4e9e-9f0a-000000000002",
+      "name": "Check Entry Exit Trade Approvals"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 30s": {
+      "main": [[{ "node": "Check Entry Exit Trade Approvals", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "c5d6e7f8-0000-4f9e-9f0a-000000000001",
+  "meta": {
+    "instanceId": "2442c103091fc3db3a62ddff01333be403ece2b2cfb7e6ba914ccc82432a7656"
+  },
+  "nodeGroups": [],
+  "id": "F0r3xEntryExitP0ll",
+  "tags": []
+}

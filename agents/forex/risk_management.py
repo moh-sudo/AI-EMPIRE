@@ -21,7 +21,7 @@ are different:
 """
 
 from dataclasses import dataclass, field
-from typing import Literal, Optional
+from typing import Literal
 
 FUNDEDNEXT_STELLAR_LITE_10K = {
     "initial_balance": 10_000.0,
@@ -99,11 +99,16 @@ def evaluate_fundednext_risk(
         )
 
     if verdict == VERDICT_REASONABLE:
-        notes.append(f"${proposed_dollars:,.2f} ({proposed_risk_pct}%) is within both the daily-loss and drawdown buffers.")
+        notes.append(
+            f"${proposed_dollars:,.2f} ({proposed_risk_pct}%) is within both the daily-loss and drawdown buffers."
+        )
 
     return RiskEvaluation(
-        account="fundednext_stellar_lite_10k", proposed_risk_pct=proposed_risk_pct,
-        proposed_risk_dollars=proposed_dollars, verdict=verdict, notes=notes,
+        account="fundednext_stellar_lite_10k",
+        proposed_risk_pct=proposed_risk_pct,
+        proposed_risk_dollars=proposed_dollars,
+        verdict=verdict,
+        notes=notes,
     )
 
 
@@ -130,8 +135,11 @@ def evaluate_personal_account_risk(
         note = f"{proposed_risk_pct}% is within the {min_pct}-{max_pct}% guidance from the strategy references."
 
     return RiskEvaluation(
-        account=account, proposed_risk_pct=proposed_risk_pct,
-        proposed_risk_dollars=proposed_dollars, verdict=verdict, notes=[note],
+        account=account,
+        proposed_risk_pct=proposed_risk_pct,
+        proposed_risk_dollars=proposed_dollars,
+        verdict=verdict,
+        notes=[note],
     )
 
 
@@ -188,10 +196,21 @@ def check_daily_target_status(todays_pnl: float, target: float = DAILY_PROFIT_TA
     trading cap once the daily target is hit, not just a soft goal, so
     this reports a status rather than silently allowing more trades."""
     if todays_pnl >= target:
-        return {"status": "target_hit", "notes": [f"Today's P&L (${todays_pnl:,.2f}) has reached or passed the ${target:,.2f} daily target -- your own rule is to stop for the day, not chase more."]}
+        return {
+            "status": "target_hit",
+            "notes": [
+                f"Today's P&L (${todays_pnl:,.2f}) has reached or passed the ${target:,.2f} daily target -- your own rule is to stop for the day, not chase more."
+            ],
+        }
     if todays_pnl >= target * 0.5:
-        return {"status": "approaching_target", "notes": [f"Today's P&L (${todays_pnl:,.2f}) is over half of the ${target:,.2f} daily target."]}
-    return {"status": "in_progress", "notes": [f"Today's P&L (${todays_pnl:,.2f}) is below the ${target:,.2f} daily target."]}
+        return {
+            "status": "approaching_target",
+            "notes": [f"Today's P&L (${todays_pnl:,.2f}) is over half of the ${target:,.2f} daily target."],
+        }
+    return {
+        "status": "in_progress",
+        "notes": [f"Today's P&L (${todays_pnl:,.2f}) is below the ${target:,.2f} daily target."],
+    }
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -230,7 +249,7 @@ def run_trade_count_reference_publish() -> dict:
     )
 
 
-def check_trade_count_status(trades_taken_today: int, last_trade_result: Optional[Literal["win", "loss"]] = None) -> dict:
+def check_trade_count_status(trades_taken_today: int, last_trade_result: Literal["win", "loss"] | None = None) -> dict:
     """Mohamed's own daily trade-count rule: at most MAX_TRADES_PER_DAY
     trades, regardless of how many pairs show an opportunity or how
     those trades turn out. If exactly one trade has been taken and it
@@ -240,18 +259,24 @@ def check_trade_count_status(trades_taken_today: int, last_trade_result: Optiona
     if trades_taken_today >= MAX_TRADES_PER_DAY:
         return {
             "status": "day_complete",
-            "notes": [f"{trades_taken_today} trades already taken today -- your own rule is a hard stop at {MAX_TRADES_PER_DAY}/day, regardless of how many pairs show an opportunity or whether those trades won or lost."],
+            "notes": [
+                f"{trades_taken_today} trades already taken today -- your own rule is a hard stop at {MAX_TRADES_PER_DAY}/day, regardless of how many pairs show an opportunity or whether those trades won or lost."
+            ],
         }
 
     if trades_taken_today == 1 and last_trade_result == "loss":
         return {
             "status": "review_required_before_next",
-            "notes": ["First trade was a loss -- your own rule: backtest it, find what was wrong, and journal it before taking the second trade."],
+            "notes": [
+                "First trade was a loss -- your own rule: backtest it, find what was wrong, and journal it before taking the second trade."
+            ],
         }
 
     return {
         "status": "can_trade",
-        "notes": [f"{trades_taken_today} of {MAX_TRADES_PER_DAY} trades taken today -- another trade is allowed if a real opportunity appears (the pair list is a watchlist, not a mandate to trade every pair every day)."],
+        "notes": [
+            f"{trades_taken_today} of {MAX_TRADES_PER_DAY} trades taken today -- another trade is allowed if a real opportunity appears (the pair list is a watchlist, not a mandate to trade every pair every day)."
+        ],
     }
 
 
@@ -265,7 +290,9 @@ def log_risk_discussion(evaluation: RiskEvaluation) -> dict:
         context=f"Proposed {evaluation.proposed_risk_pct}% (${evaluation.proposed_risk_dollars:,.2f}) risk on {evaluation.account}.",
         outcome=evaluation.verdict,
         metadata={
-            "account": evaluation.account, "proposed_risk_pct": evaluation.proposed_risk_pct,
-            "proposed_risk_dollars": evaluation.proposed_risk_dollars, "notes": evaluation.notes,
+            "account": evaluation.account,
+            "proposed_risk_pct": evaluation.proposed_risk_pct,
+            "proposed_risk_dollars": evaluation.proposed_risk_dollars,
+            "notes": evaluation.notes,
         },
     )

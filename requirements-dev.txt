@@ -1,0 +1,5 @@
+# Dev/CI-only tooling -- not needed at runtime, kept separate from
+# requirements.txt on purpose.
+ruff
+pytest
+pre-commit

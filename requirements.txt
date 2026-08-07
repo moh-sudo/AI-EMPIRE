@@ -9,3 +9,12 @@ MetaTrader5  # Windows-only; Forex Division's Market Analytics agent, needs a lo
 fastapi
 uvicorn
 tzdata  # Windows doesn't ship the IANA tz database by default -- needed for zoneinfo (agents/forex/_pairs.py)
+sounddevice  # local voice interface -- real microphone capture (shared/voice/audio_io.py)
+google-auth
+google-auth-oauthlib
+google-api-python-client  # Personal Division -- Gmail read-only integration (shared/gmail/client.py)
+trafilatura  # Learning Division -- URL article text extraction
+pypdf  # Learning Division -- PDF text extraction
+youtube-transcript-api  # Learning Division -- YouTube video transcripts
+tavily-python  # Research & Innovation Division -- real web search (switched from ddgs/DuckDuckGo scraping, which got blocked in live testing 2026-08-03)
+pyjwt  # Systems & Automation Division -- signs the scoped JWT for shared/systems_db_connector.py (already a transitive dep, pinned directly since we now import it ourselves)

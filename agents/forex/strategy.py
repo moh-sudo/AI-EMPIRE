@@ -18,9 +18,7 @@ Analytics exists, its structured chart-read output can be fed through
 the same validate_setup() instead of free text.
 """
 
-import re
 from dataclasses import dataclass, field
-from typing import Optional
 
 # Mohamed's actual traded instruments -- expanded 2026-07-26 (originally
 # narrowed down from a longer list "because I understand more", journal
@@ -54,7 +52,7 @@ STATUS_REJECTED = "Rejected"
 @dataclass
 class TradePlanValidation:
     pair: str
-    session: Optional[str]
+    session: str | None
     status: str
     matched_concepts: list[str] = field(default_factory=list)
     missing_concepts: list[str] = field(default_factory=list)
@@ -66,7 +64,7 @@ def _matches_any(text: str, keywords: list[str]) -> bool:
     return any(kw in text_lower for kw in keywords)
 
 
-def validate_setup(description: str, pair: str, session: Optional[str] = None) -> TradePlanValidation:
+def validate_setup(description: str, pair: str, session: str | None = None) -> TradePlanValidation:
     """Deterministic check of a described setup against Mohamed's own
     documented ICT/SMC criteria -- never invents a verdict, only
     reports which required concepts were and weren't present in the
@@ -77,7 +75,9 @@ def validate_setup(description: str, pair: str, session: Optional[str] = None) -
 
     pair_upper = pair.upper()
     if pair_upper not in TRADED_PAIRS:
-        notes.append(f"{pair_upper} is not in Mohamed's traded pairs list ({', '.join(sorted(TRADED_PAIRS))}) -- outside documented experience.")
+        notes.append(
+            f"{pair_upper} is not in Mohamed's traded pairs list ({', '.join(sorted(TRADED_PAIRS))}) -- outside documented experience."
+        )
 
     if not session:
         notes.append("No session given -- a setup can't be validated without knowing which session it's in.")
@@ -94,13 +94,19 @@ def validate_setup(description: str, pair: str, session: Optional[str] = None) -
         status = STATUS_REJECTED
     elif missing:
         status = STATUS_PENDING
-        notes.append(f"Missing documented concepts: {', '.join(missing)} -- setup isn't fully described per Mohamed's own checklist yet.")
+        notes.append(
+            f"Missing documented concepts: {', '.join(missing)} -- setup isn't fully described per Mohamed's own checklist yet."
+        )
     else:
         status = STATUS_VALIDATED
 
     return TradePlanValidation(
-        pair=pair_upper, session=session, status=status,
-        matched_concepts=matched, missing_concepts=missing, notes=notes,
+        pair=pair_upper,
+        session=session,
+        status=status,
+        matched_concepts=matched,
+        missing_concepts=missing,
+        notes=notes,
     )
 
 
@@ -197,19 +203,19 @@ class SMCChecklistResult:
 
 def smc_entry_checklist(
     *,
-    htf_trend: Optional[str] = None,  # "bullish" | "bearish" | "ranging"
+    htf_trend: str | None = None,  # "bullish" | "bearish" | "ranging"
     structure_identified: bool = False,
     bos_or_choch: bool = False,
     liquidity_located: bool = False,
     liquidity_swept: bool = False,
     at_order_block: bool = False,
     fvg_present: bool = False,
-    direction: Optional[str] = None,  # "buy" | "sell"
-    pricing_zone: Optional[str] = None,  # "premium" | "discount"
+    direction: str | None = None,  # "buy" | "sell"
+    pricing_zone: str | None = None,  # "premium" | "discount"
     active_session: bool = False,
-    reward_to_risk: Optional[float] = None,
-    stop_loss: Optional[float] = None,
-    take_profit: Optional[float] = None,
+    reward_to_risk: float | None = None,
+    stop_loss: float | None = None,
+    take_profit: float | None = None,
 ) -> SMCChecklistResult:
     """The 12-item SMC entry checklist, as discrete typed inputs
     rather than free text -- higher precision than validate_setup(),
@@ -239,16 +245,17 @@ def smc_entry_checklist(
         if not ok:
             notes.append(f"{SMC_CHECKLIST_ITEMS[key]} -- not confirmed.")
 
-    zone_matches_direction = (
-        (direction == "buy" and pricing_zone == "discount")
-        or (direction == "sell" and pricing_zone == "premium")
+    zone_matches_direction = (direction == "buy" and pricing_zone == "discount") or (
+        direction == "sell" and pricing_zone == "premium"
     )
     if direction and pricing_zone and zone_matches_direction:
         passed.append("pricing_zone_correct")
     else:
         failed.append("pricing_zone_correct")
         if direction and pricing_zone:
-            notes.append(f"Direction '{direction}' at a '{pricing_zone}' zone contradicts buy-cheap/sell-expensive -- a {('buy' if direction == 'buy' else 'sell')} setup should be at {'discount' if direction == 'buy' else 'premium'}.")
+            notes.append(
+                f"Direction '{direction}' at a '{pricing_zone}' zone contradicts buy-cheap/sell-expensive -- a {('buy' if direction == 'buy' else 'sell')} setup should be at {'discount' if direction == 'buy' else 'premium'}."
+            )
         else:
             notes.append("Direction and/or pricing zone not given -- can't confirm buy-cheap/sell-expensive alignment.")
 
@@ -256,7 +263,9 @@ def smc_entry_checklist(
         passed.append("reward_to_risk_ok")
     else:
         failed.append("reward_to_risk_ok")
-        notes.append(f"Reward:risk is {reward_to_risk if reward_to_risk is not None else 'not given'} -- your own minimum is {MOHAMED_MIN_REWARD_TO_RISK:.0f}:1 (stricter than the reference material's 2:1).")
+        notes.append(
+            f"Reward:risk is {reward_to_risk if reward_to_risk is not None else 'not given'} -- your own minimum is {MOHAMED_MIN_REWARD_TO_RISK:.0f}:1 (stricter than the reference material's 2:1)."
+        )
 
     if stop_loss is not None:
         passed.append("stop_loss_defined")
@@ -361,10 +370,21 @@ def run_ict_reference_publish() -> dict:
         agent_id="forex-strategy-v0.1",
         content=ICT_REFERENCE_TEXT,
         source="mohamed-provided-2026-07-24",
-        metadata={"concepts": [
-            "displacement", "breaker_blocks", "mitigation_blocks", "pd_arrays", "ote",
-            "dealing_range", "daily_bias", "kill_zones", "judas_swing", "smt_divergence", "po3",
-        ]},
+        metadata={
+            "concepts": [
+                "displacement",
+                "breaker_blocks",
+                "mitigation_blocks",
+                "pd_arrays",
+                "ote",
+                "dealing_range",
+                "daily_bias",
+                "kill_zones",
+                "judas_swing",
+                "smt_divergence",
+                "po3",
+            ]
+        },
     )
 
 
@@ -581,10 +601,14 @@ def asian_range_strategy_checklist(
 
     if not range_marked_before_midnight:
         status = STATUS_REJECTED
-        notes.append("Without a range marked before 12AM NY, this isn't the documented strategy at all -- reject outright rather than treat as merely pending.")
+        notes.append(
+            "Without a range marked before 12AM NY, this isn't the documented strategy at all -- reject outright rather than treat as merely pending."
+        )
     elif not liquidity_swept or not bos_or_choch_confirmed:
         status = STATUS_REJECTED
-        notes.append("Entering before the sweep and structure shift are confirmed is exactly the mistake the notes warn against.")
+        notes.append(
+            "Entering before the sweep and structure shift are confirmed is exactly the mistake the notes warn against."
+        )
     elif failed:
         status = STATUS_PENDING
     else:
@@ -595,8 +619,8 @@ def asian_range_strategy_checklist(
 
 
 def ema_stochastic_signal(
-    price_above_200ema: Optional[bool],
-    stochastic_zone: Optional[str],  # "oversold" | "overbought" | "neutral" | None
+    price_above_200ema: bool | None,
+    stochastic_zone: str | None,  # "oversold" | "overbought" | "neutral" | None
     crossed_back: bool = False,
 ) -> dict:
     """The 200EMA + Stochastic strategy, Mohamed's own notes page 31-32.
@@ -611,14 +635,34 @@ def ema_stochastic_signal(
         return {"direction": None, "notes": ["200EMA position and/or Stochastic zone not given -- can't evaluate."]}
 
     if price_above_200ema and stochastic_zone == "oversold" and crossed_back:
-        return {"direction": "buy", "notes": ["Price above 200EMA (uptrend bias) + Stochastic oversold with confirmed cross-back inside -- buy signal per the documented rule."]}
+        return {
+            "direction": "buy",
+            "notes": [
+                "Price above 200EMA (uptrend bias) + Stochastic oversold with confirmed cross-back inside -- buy signal per the documented rule."
+            ],
+        }
     if not price_above_200ema and stochastic_zone == "overbought" and crossed_back:
-        return {"direction": "sell", "notes": ["Price below 200EMA (downtrend bias) + Stochastic overbought with confirmed cross-back inside -- sell signal per the documented rule."]}
+        return {
+            "direction": "sell",
+            "notes": [
+                "Price below 200EMA (downtrend bias) + Stochastic overbought with confirmed cross-back inside -- sell signal per the documented rule."
+            ],
+        }
 
     if not crossed_back and stochastic_zone in ("oversold", "overbought"):
-        return {"direction": None, "notes": [f"Stochastic is in the {stochastic_zone} zone but hasn't crossed back inside yet -- the notes are explicit this isn't a signal on its own, wait for the cross-back."]}
+        return {
+            "direction": None,
+            "notes": [
+                f"Stochastic is in the {stochastic_zone} zone but hasn't crossed back inside yet -- the notes are explicit this isn't a signal on its own, wait for the cross-back."
+            ],
+        }
 
-    return {"direction": None, "notes": ["200EMA trend bias and Stochastic zone don't line up for a signal (e.g. uptrend bias with an overbought reading, not oversold)."]}
+    return {
+        "direction": None,
+        "notes": [
+            "200EMA trend bias and Stochastic zone don't line up for a signal (e.g. uptrend bias with an overbought reading, not oversold)."
+        ],
+    }
 
 
 DXY_PAIR_CORRELATION: dict[str, dict[str, str]] = {
@@ -675,12 +719,29 @@ def dxy_bias_check(dxy_direction: str, pair: str, proposed_direction: str) -> di
     pair_upper = pair.upper()
     expected = DXY_PAIR_CORRELATION.get(pair_upper, {}).get(dxy_direction)
     if expected is None:
-        return {"alignment": "unknown_pair", "notes": [f"{pair_upper} isn't in the documented/inferred DXY correlation table."]}
+        return {
+            "alignment": "unknown_pair",
+            "notes": [f"{pair_upper} isn't in the documented/inferred DXY correlation table."],
+        }
 
-    inferred_note = " (inferred from USD-is-base logic, not directly named in the notes)" if pair_upper in DXY_INFERRED_PAIRS else ""
+    inferred_note = (
+        " (inferred from USD-is-base logic, not directly named in the notes)"
+        if pair_upper in DXY_INFERRED_PAIRS
+        else ""
+    )
     if proposed_direction == expected:
-        return {"alignment": "aligned", "notes": [f"DXY {dxy_direction} implies {expected} on {pair_upper}{inferred_note} -- proposed direction agrees."]}
-    return {"alignment": "fights_dxy", "notes": [f"DXY {dxy_direction} implies {expected} on {pair_upper}{inferred_note}, but proposed direction is {proposed_direction} -- 'if your pair setup fights DXY, probability drops.'"]}
+        return {
+            "alignment": "aligned",
+            "notes": [
+                f"DXY {dxy_direction} implies {expected} on {pair_upper}{inferred_note} -- proposed direction agrees."
+            ],
+        }
+    return {
+        "alignment": "fights_dxy",
+        "notes": [
+            f"DXY {dxy_direction} implies {expected} on {pair_upper}{inferred_note}, but proposed direction is {proposed_direction} -- 'if your pair setup fights DXY, probability drops.'"
+        ],
+    }
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -723,7 +784,7 @@ def first_candle_rule_checklist(
     opening_range_marked: bool = False,
     range_broken: bool = False,
     fvg_confirms_break: bool = False,
-    reward_to_risk: Optional[float] = None,
+    reward_to_risk: float | None = None,
 ) -> FirstCandleRuleResult:
     """The First Candle Rule, Mohamed-provided 2026-07-25: mark the
     high/low of the 9:30-9:35 AM NY opening candle, drop to the
@@ -752,7 +813,9 @@ def first_candle_rule_checklist(
 
     if not fvg_confirms_break:
         failed.append("fvg_confirms_break")
-        notes.append("Break not yet confirmed by a Fair Value Gap -- a candle close or wick alone isn't enough per this strategy's own rule.")
+        notes.append(
+            "Break not yet confirmed by a Fair Value Gap -- a candle close or wick alone isn't enough per this strategy's own rule."
+        )
     else:
         passed.append("fvg_confirms_break")
 
@@ -760,13 +823,17 @@ def first_candle_rule_checklist(
         passed.append("reward_to_risk_ok")
     else:
         failed.append("reward_to_risk_ok")
-        notes.append(f"Reward:risk is {reward_to_risk if reward_to_risk is not None else 'not given'} -- this strategy's confirmed minimum is {MOHAMED_FIRST_CANDLE_MIN_REWARD_TO_RISK:.0f}:1.")
+        notes.append(
+            f"Reward:risk is {reward_to_risk if reward_to_risk is not None else 'not given'} -- this strategy's confirmed minimum is {MOHAMED_FIRST_CANDLE_MIN_REWARD_TO_RISK:.0f}:1."
+        )
 
     if not opening_range_marked or not range_broken:
         status = STATUS_REJECTED
     elif not fvg_confirms_break:
         status = STATUS_REJECTED
-        notes.append("Entering without FVG confirmation is exactly the mistake this strategy warns against -- reject, don't just flag pending.")
+        notes.append(
+            "Entering without FVG confirmation is exactly the mistake this strategy warns against -- reject, don't just flag pending."
+        )
     elif failed:
         status = STATUS_PENDING
     else:
@@ -828,7 +895,7 @@ class DailyBiasSweepResult:
 
 def daily_bias_ict2022_checklist(
     *,
-    level_swept: Optional[str] = None,
+    level_swept: str | None = None,
     after_930_ny_open: bool = False,
     displacement_fvg_formed: bool = False,
     retracement_into_fvg: bool = False,
@@ -850,23 +917,37 @@ def daily_bias_ict2022_checklist(
     notes: list[str] = []
 
     if not level_swept or level_swept not in DAILY_BIAS_LEVELS:
-        return DailyBiasSweepResult(scenario="no_setup", status=STATUS_REJECTED, notes=["No recognized level swept yet (previous day high/low, Asia high/low, London high/low)."])
+        return DailyBiasSweepResult(
+            scenario="no_setup",
+            status=STATUS_REJECTED,
+            notes=["No recognized level swept yet (previous day high/low, Asia high/low, London high/low)."],
+        )
 
     if not after_930_ny_open:
         notes.append("Documented timing is after the 9:30 AM NY open -- this sweep is outside that window.")
 
     if not displacement_fvg_formed:
-        return DailyBiasSweepResult(scenario="no_setup", status=STATUS_PENDING, notes=notes + [f"{level_swept} swept but no displacement/FVG confirming a reaction yet."])
+        return DailyBiasSweepResult(
+            scenario="no_setup",
+            status=STATUS_PENDING,
+            notes=notes + [f"{level_swept} swept but no displacement/FVG confirming a reaction yet."],
+        )
 
     if reversal_then_invalidated:
-        notes.append(f"{level_swept} swept, reversal attempt formed, then invalidated back through in the original sweep direction -- per Mohamed's own rule, this failed-reversal case is the most explosive continuation setup, not a failure to trade.")
+        notes.append(
+            f"{level_swept} swept, reversal attempt formed, then invalidated back through in the original sweep direction -- per Mohamed's own rule, this failed-reversal case is the most explosive continuation setup, not a failure to trade."
+        )
         return DailyBiasSweepResult(scenario="failed_reversal_continuation", status=STATUS_VALIDATED, notes=notes)
 
     if retracement_into_fvg:
-        notes.append(f"{level_swept} swept, displacement/FVG formed opposite the sweep direction, retracement into the FVG confirmed -- ICT 2022 Model reversal setup, target the opposite liquidity level.")
+        notes.append(
+            f"{level_swept} swept, displacement/FVG formed opposite the sweep direction, retracement into the FVG confirmed -- ICT 2022 Model reversal setup, target the opposite liquidity level."
+        )
         return DailyBiasSweepResult(scenario="reversal", status=STATUS_VALIDATED, notes=notes)
 
-    notes.append("Displacement/FVG formed but retracement into it not yet confirmed -- wait before entering the reversal leg.")
+    notes.append(
+        "Displacement/FVG formed but retracement into it not yet confirmed -- wait before entering the reversal leg."
+    )
     return DailyBiasSweepResult(scenario="reversal", status=STATUS_PENDING, notes=notes)
 
 

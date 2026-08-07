@@ -15,7 +15,7 @@ telemetry source to build against yet.
 """
 
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 DEFAULT_WALLET_MINIMUM = 500  # KSh -- matches the value Fixera's own trg_wallet_gate
 # is documented to use (even though we found it isn't actually enforced in
@@ -42,7 +42,7 @@ def match_partner(
     booking: dict[str, Any],
     worker_pool: list[dict[str, Any]],
     wallet_minimum: float = DEFAULT_WALLET_MINIMUM,
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Flat-pool matching: filter to eligible workers, then pick by
     highest rating, breaking ties by lowest total_jobs (load balancing --
     prefer workers who've had fewer jobs among equally-rated options)."""
@@ -59,7 +59,7 @@ class LifecycleEvent:
     booking: dict[str, Any]
 
 
-def detect_lifecycle_event(old_status: str, new_status: str, booking: dict[str, Any]) -> Optional[LifecycleEvent]:
+def detect_lifecycle_event(old_status: str, new_status: str, booking: dict[str, Any]) -> LifecycleEvent | None:
     """Detect a booking status transition worth acting on."""
     if old_status == new_status:
         return None

@@ -30,12 +30,19 @@ refuses to post anything without an explicit confirmed=True from the
 caller -- never auto-posts to Fixera's real, public Facebook Page.
 """
 
+import json
 import os
+import re
+from datetime import UTC, datetime
+from pathlib import Path
 
 import requests
 
 GRAPH_API_VERSION = "v21.0"
 GRAPH_API_BASE = f"https://graph.facebook.com/{GRAPH_API_VERSION}"
+
+PENDING_POSTS_FILE = Path(__file__).resolve().parent / ".marketing_pending_posts.json"
+_APPROVAL_PATTERN = re.compile(r"^(APPROVE|REJECT)\s+(\S+)$", re.IGNORECASE)
 
 
 def post_text_to_facebook_page(message: str) -> dict:
@@ -74,7 +81,10 @@ def publish_post(message: str, confirmed: bool) -> dict:
     Every attempt (successful or not) is logged to memory_experience so
     there's a real record of what was published and when."""
     if not confirmed:
-        return {"posted": False, "reason": "confirmed=True was not passed -- this agent never posts to the real Facebook Page without an explicit human go-ahead."}
+        return {
+            "posted": False,
+            "reason": "confirmed=True was not passed -- this agent never posts to the real Facebook Page without an explicit human go-ahead.",
+        }
 
     result = post_text_to_facebook_page(message)
 
@@ -89,3 +99,83 @@ def publish_post(message: str, confirmed: bool) -> dict:
         metadata={k: v for k, v in result.items() if k != "raw_error"},
     )
     return result
+
+
+# ---------------------------------------------------------------------------
+# Approval-flow plumbing (added 2026-08-01). Lets Mohamed approve/reject a
+# draft from his phone via Telegram, without needing to be at this machine.
+# Deliberately NOT content generation -- that's still deferred per his
+# architecture-first instruction (2026-07-31); a draft's message text today
+# comes from whoever calls stage_post() (a Claude Code session, on his
+# behalf), not from the agent generating it itself. Once real content
+# generation exists, it would call stage_post() the same way this does.
+# ---------------------------------------------------------------------------
+
+
+def _read_pending() -> dict:
+    if not PENDING_POSTS_FILE.exists():
+        return {}
+    try:
+        return json.loads(PENDING_POSTS_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _save_pending(data: dict) -> None:
+    PENDING_POSTS_FILE.write_text(json.dumps(data, indent=2))
+
+
+def stage_post(message: str) -> dict:
+    """Stages a draft and sends it to Mohamed on Telegram for approval.
+    Does NOT publish anything -- only publish_post(confirmed=True),
+    triggered by his own "APPROVE <id>" reply via handle_approval_reply()
+    below, can do that."""
+    from agents.fixera._telegram import send_telegram
+
+    pending = _read_pending()
+    next_id = str(max([int(k) for k in pending.keys()] + [0]) + 1)
+    pending[next_id] = {
+        "message": message,
+        "status": "pending",
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+    _save_pending(pending)
+
+    telegram_text = (
+        f"[Marketing] Draft post #{next_id} awaiting your approval:\n\n"
+        f"{message}\n\n"
+        f'Reply "APPROVE {next_id}" to publish, or "REJECT {next_id}" to discard.'
+    )
+    send_result = send_telegram(telegram_text, token_env="TELEGRAM_FIXERA_BOT_TOKEN")
+    return {"draft_id": next_id, "telegram_sent": send_result.get("sent", False)}
+
+
+def handle_approval_reply(text: str) -> dict | None:
+    """If text matches "APPROVE <id>" or "REJECT <id>" (case-insensitive),
+    acts on the matching pending draft and returns a result dict with a
+    "reply" message for telegram_listener.py to send back. Returns None
+    for any other text, signalling "not an approval command, treat this
+    as a normal question instead" to the caller."""
+    match = _APPROVAL_PATTERN.match(text.strip())
+    if not match:
+        return None
+
+    action, draft_id = match.group(1).upper(), match.group(2)
+    pending = _read_pending()
+    draft = pending.get(draft_id)
+    if not draft:
+        return {"handled": True, "reply": f"No pending draft #{draft_id} found."}
+    if draft["status"] != "pending":
+        return {"handled": True, "reply": f"Draft #{draft_id} was already {draft['status']}."}
+
+    if action == "REJECT":
+        draft["status"] = "rejected"
+        _save_pending(pending)
+        return {"handled": True, "reply": f"Draft #{draft_id} rejected -- not published."}
+
+    result = publish_post(draft["message"], confirmed=True)
+    draft["status"] = "approved" if result.get("posted") else "approve_failed"
+    _save_pending(pending)
+    if result.get("posted"):
+        return {"handled": True, "reply": f"Draft #{draft_id} published! Post ID: {result.get('post_id')}"}
+    return {"handled": True, "reply": f"Draft #{draft_id} approved but publishing failed: {result.get('reason')}"}

@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import BaseModel
 
 VALID_CLASSIFICATIONS = {"SECRET", "RESTRICTED", "CONFIDENTIAL", "INTERNAL", "PUBLIC"}
@@ -8,8 +6,8 @@ VALID_CLASSIFICATIONS = {"SECRET", "RESTRICTED", "CONFIDENTIAL", "INTERNAL", "PU
 class RouteRequest(BaseModel):
     prompt: str
     data_classification: str
-    division: Optional[str] = None
-    agent_id: Optional[str] = None
+    division: str | None = None
+    agent_id: str | None = None
     complex_reasoning: bool = False
 
 

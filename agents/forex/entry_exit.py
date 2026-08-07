@@ -36,17 +36,30 @@ Hard safety rules, enforced in code, not just documented:
    they don't match, rather than silently firing on whatever account
    happens to be logged in.
 
-Known gap, not hidden: the human-confirmation step in v0.1 is a plain
-explicit function argument (confirmed=True), not yet a live Telegram
-reply listener -- that would need a persistent polling process (same
-category of infrastructure as agents/audit/server.py + n8n), deferred
-to v0.2. v0.1 sends the proposal to Telegram for visibility
-(send_telegram_alert) and requires the caller to separately pass
-confirmed=True to actually execute.
+v0.2 (2026-08-01): the gap above is closed -- stage_trade_proposal()
+sends a proposal to Telegram AND persists it as a pending approval;
+handle_trade_approval_reply() (wired into a new dedicated listener,
+agents/forex/entry_exit_listener.py, mirroring the Fixera Marketing
+Agent's approval flow built the same day) reacts to a real "APPROVE
+<id>" / "REJECT <id>" reply from Mohamed's phone, calling
+execute_order(confirmed=True) only on approval. execute_order() itself
+is completely unchanged -- all three hard safety rules above still
+apply exactly as before; this only replaces how confirmed=True gets
+set, not what it gates. Explicitly NOT a live-fire test in itself --
+per Mohamed's own instruction (2026-08-01), this is architecture only;
+the actual first real order (even to the demo account) is a separate,
+deliberate decision he'll make when he's ready to give it his full
+attention, not something to trigger incidentally while testing plumbing.
 """
 
-from dataclasses import dataclass, field
-from typing import Literal, Optional
+import json
+import re
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Literal
+
+PENDING_PROPOSALS_FILE = Path(__file__).resolve().parent / ".pending_trade_proposals.json"
+_APPROVAL_PATTERN = re.compile(r"^(APPROVE|REJECT)\s+(\S+)$", re.IGNORECASE)
 
 DEMO_ACCOUNTS = {"exness_demo"}
 REAL_ACCOUNTS = {"fundednext_stellar_lite_10k", "exness_live", "ic_markets_live"}
@@ -70,17 +83,29 @@ def check_execution_allowed(account: str) -> ExecutionPermission:
     (fail closed, same pattern as News Filter's unreachable-calendar
     case) rather than silently assumed safe."""
     if account in DEMO_ACCOUNTS:
-        return ExecutionPermission(account=account, allowed=True, reasons=["Demo account -- always allowed, this is how the readiness track record gets built."])
+        return ExecutionPermission(
+            account=account,
+            allowed=True,
+            reasons=["Demo account -- always allowed, this is how the readiness track record gets built."],
+        )
 
     if account not in REAL_ACCOUNTS:
-        return ExecutionPermission(account=account, allowed=False, reasons=[f"'{account}' isn't a recognized demo or real account -- refusing rather than assuming safe."])
+        return ExecutionPermission(
+            account=account,
+            allowed=False,
+            reasons=[f"'{account}' isn't a recognized demo or real account -- refusing rather than assuming safe."],
+        )
 
     from agents.forex.performance_review import run_performance_review
 
     assessment = run_performance_review(account)
     if assessment.ready:
         return ExecutionPermission(account=account, allowed=True, reasons=list(assessment.reasons))
-    return ExecutionPermission(account=account, allowed=False, reasons=[f"Performance Review: NOT READY for {account}."] + list(assessment.reasons))
+    return ExecutionPermission(
+        account=account,
+        allowed=False,
+        reasons=[f"Performance Review: NOT READY for {account}."] + list(assessment.reasons),
+    )
 
 
 @dataclass
@@ -100,10 +125,18 @@ class TradeProposal:
 
 
 def build_trade_proposal(
-    *, account: str, pair: str, direction: Literal["buy", "sell"], lot_size: float,
-    stop_loss: float, take_profit: float, strategy_name: str,
-    gate_verdict: str, gate_reasons: list[str],
-    risk_verdict: str, risk_notes: list[str],
+    *,
+    account: str,
+    pair: str,
+    direction: Literal["buy", "sell"],
+    lot_size: float,
+    stop_loss: float,
+    take_profit: float,
+    strategy_name: str,
+    gate_verdict: str,
+    gate_reasons: list[str],
+    risk_verdict: str,
+    risk_notes: list[str],
 ) -> TradeProposal:
     """Pure aggregation -- takes the already-computed verdicts from
     CEO/Lead's evaluate_execution_gate() and Risk Management's
@@ -116,10 +149,17 @@ def build_trade_proposal(
     inside check_execution_allowed() when the account is a real one."""
     permission = check_execution_allowed(account)
     return TradeProposal(
-        account=account, pair=pair.upper(), direction=direction, lot_size=lot_size,
-        stop_loss=stop_loss, take_profit=take_profit, strategy_name=strategy_name,
-        gate_verdict=gate_verdict, gate_reasons=list(gate_reasons),
-        risk_verdict=risk_verdict, risk_notes=list(risk_notes),
+        account=account,
+        pair=pair.upper(),
+        direction=direction,
+        lot_size=lot_size,
+        stop_loss=stop_loss,
+        take_profit=take_profit,
+        strategy_name=strategy_name,
+        gate_verdict=gate_verdict,
+        gate_reasons=list(gate_reasons),
+        risk_verdict=risk_verdict,
+        risk_notes=list(risk_notes),
         execution_permission=permission,
     )
 
@@ -147,7 +187,9 @@ def is_proposal_tradeable(proposal: TradeProposal) -> tuple[bool, list[str]]:
         reasons.extend(proposal.execution_permission.reasons)
 
     if ok:
-        reasons.append("All gates agree -- tradeable per the system's own checks. Still requires Mohamed's explicit confirmation before anything is sent to MT5.")
+        reasons.append(
+            "All gates agree -- tradeable per the system's own checks. Still requires Mohamed's explicit confirmation before anything is sent to MT5."
+        )
 
     return ok, reasons
 
@@ -190,14 +232,18 @@ def execute_order(proposal: TradeProposal, confirmed: bool) -> dict:
     login-number registry, since no such registry exists yet -- a real
     limitation, documented rather than silently assumed correct."""
     if not confirmed:
-        return {"executed": False, "reason": "confirmed=True was not passed -- per Law 4, this agent never executes without an explicit human go-ahead."}
+        return {
+            "executed": False,
+            "reason": "confirmed=True was not passed -- per Law 4, this agent never executes without an explicit human go-ahead.",
+        }
 
     tradeable, reasons = is_proposal_tradeable(proposal)
     if not tradeable:
         return {"executed": False, "reason": "Proposal is not tradeable.", "details": reasons}
 
-    from agents.forex.market_analytics import connect, disconnect, resolve_symbol
     import MetaTrader5 as mt5
+
+    from agents.forex.market_analytics import connect, disconnect, resolve_symbol
 
     if not connect():
         return {"executed": False, "reason": "Could not connect to MT5 terminal."}
@@ -243,11 +289,15 @@ def execute_order(proposal: TradeProposal, confirmed: bool) -> dict:
         from agents.forex._memory_helpers import safe_add_experience
 
         safe_add_experience(
-            division="forex", agent_id="forex-entry-exit-v0.1", event_type="order_executed",
+            division="forex",
+            agent_id="forex-entry-exit-v0.1",
+            event_type="order_executed",
             context=f"{proposal.direction} {proposal.lot_size} {symbol} SL={proposal.stop_loss} TP={proposal.take_profit}",
             outcome="filled" if success else "rejected",
             metadata={
-                "account": proposal.account, "strategy": proposal.strategy_name, "pair": symbol,
+                "account": proposal.account,
+                "strategy": proposal.strategy_name,
+                "pair": symbol,
                 "retcode": result.retcode if result is not None else None,
                 "order_id": result.order if (result is not None and success) else None,
             },
@@ -259,3 +309,99 @@ def execute_order(proposal: TradeProposal, confirmed: bool) -> dict:
         }
     finally:
         disconnect()
+
+
+# ---------------------------------------------------------------------------
+# Remote approval flow (added 2026-08-01). Lets Mohamed approve/reject a real
+# trade proposal from his phone via Telegram -- mirrors the Fixera Marketing
+# Agent's approval flow, built the same day. execute_order()'s own hard
+# safety rules (confirmed=True gate, Performance Review readiness check,
+# MT5 server-match check) are unchanged and still all apply -- this only
+# supplies the confirmed=True flag from a real human reply instead of a
+# hardcoded argument.
+# ---------------------------------------------------------------------------
+
+
+def _read_pending_proposals() -> dict:
+    if not PENDING_PROPOSALS_FILE.exists():
+        return {}
+    try:
+        return json.loads(PENDING_PROPOSALS_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _save_pending_proposals(data: dict) -> None:
+    PENDING_PROPOSALS_FILE.write_text(json.dumps(data, indent=2))
+
+
+def _proposal_to_dict(proposal: TradeProposal) -> dict:
+    return asdict(proposal)
+
+
+def _proposal_from_dict(data: dict) -> TradeProposal:
+    data = dict(data)
+    data["execution_permission"] = ExecutionPermission(**data["execution_permission"])
+    return TradeProposal(**data)
+
+
+def stage_trade_proposal(proposal: TradeProposal) -> dict:
+    """Sends a trade proposal to Telegram (Entry & Exit's own dedicated
+    bot, TELEGRAM_BOT_TOKEN) and persists it as a pending approval.
+    Never calls execute_order() itself -- publishing the proposal for
+    review and actually executing it are kept as separate steps, same
+    principle as the Marketing Agent's stage_post()/publish_post()
+    split."""
+    tradeable, reasons = is_proposal_tradeable(proposal)
+
+    pending = _read_pending_proposals()
+    next_id = str(max([int(k) for k in pending.keys()] + [0]) + 1)
+    pending[next_id] = {
+        "proposal": _proposal_to_dict(proposal),
+        "tradeable_at_staging": tradeable,
+        "status": "pending",
+    }
+    _save_pending_proposals(pending)
+
+    message = format_telegram_message(proposal, tradeable, reasons)
+    message += f'\n\nReply "APPROVE {next_id}" to execute, or "REJECT {next_id}" to discard.'
+    send_result = send_telegram_alert(message)
+    return {"proposal_id": next_id, "tradeable_at_staging": tradeable, "telegram_sent": send_result.get("sent", False)}
+
+
+def handle_trade_approval_reply(text: str) -> dict | None:
+    """If text matches "APPROVE <id>" or "REJECT <id>" (case-insensitive),
+    acts on the matching pending proposal and returns a result dict
+    with a "reply" message for entry_exit_listener.py to send back.
+    Returns None for any other text. Re-runs execute_order()'s own full
+    safety-check chain on approval -- never trusts the staged snapshot
+    alone, since real-world conditions (gates, account readiness, which
+    MT5 terminal is connected) can change between staging and reply."""
+    match = _APPROVAL_PATTERN.match(text.strip())
+    if not match:
+        return None
+
+    action, proposal_id = match.group(1).upper(), match.group(2)
+    pending = _read_pending_proposals()
+    entry = pending.get(proposal_id)
+    if not entry:
+        return {"handled": True, "reply": f"No pending trade proposal #{proposal_id} found."}
+    if entry["status"] != "pending":
+        return {"handled": True, "reply": f"Proposal #{proposal_id} was already {entry['status']}."}
+
+    if action == "REJECT":
+        entry["status"] = "rejected"
+        _save_pending_proposals(pending)
+        return {"handled": True, "reply": f"Trade proposal #{proposal_id} rejected -- not executed."}
+
+    proposal = _proposal_from_dict(entry["proposal"])
+    result = execute_order(proposal, confirmed=True)
+    entry["status"] = "executed" if result.get("executed") else "approve_failed"
+    entry["execute_result"] = result
+    _save_pending_proposals(pending)
+    if result.get("executed"):
+        return {"handled": True, "reply": f"Proposal #{proposal_id} EXECUTED. Order ID: {result.get('order_id')}"}
+    return {
+        "handled": True,
+        "reply": f"Proposal #{proposal_id} approved but NOT executed: {result.get('reason', result)}",
+    }

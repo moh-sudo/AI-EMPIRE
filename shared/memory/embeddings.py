@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 
 _openai_client = None
 

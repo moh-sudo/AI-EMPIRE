@@ -35,10 +35,14 @@ def check_column_drift(
     findings = []
     for column, source in documented_columns.items():
         if column not in actual_columns:
-            findings.append(DriftFinding(
-                "missing_column", f"{table_name}.{column}", source,
-                f"documented in {source} but not present in {table_name}",
-            ))
+            findings.append(
+                DriftFinding(
+                    "missing_column",
+                    f"{table_name}.{column}",
+                    source,
+                    f"documented in {source} but not present in {table_name}",
+                )
+            )
     return findings
 
 
@@ -50,10 +54,14 @@ def check_trigger_drift(
     findings = []
     for trigger, source in documented_triggers.items():
         if trigger not in actual_triggers:
-            findings.append(DriftFinding(
-                "missing_trigger", f"{table_name}.{trigger}", source,
-                f"documented in {source} but no such trigger exists on {table_name}",
-            ))
+            findings.append(
+                DriftFinding(
+                    "missing_trigger",
+                    f"{table_name}.{trigger}",
+                    source,
+                    f"documented in {source} but no such trigger exists on {table_name}",
+                )
+            )
     return findings
 
 
@@ -61,10 +69,14 @@ def check_view_drift(documented_views: dict[str, str], actual_views: set[str]) -
     findings = []
     for view, source in documented_views.items():
         if view not in actual_views:
-            findings.append(DriftFinding(
-                "missing_view", view, source,
-                f"documented in {source} but view does not exist",
-            ))
+            findings.append(
+                DriftFinding(
+                    "missing_view",
+                    view,
+                    source,
+                    f"documented in {source} but view does not exist",
+                )
+            )
     return findings
 
 
@@ -106,7 +118,9 @@ def run_governance_sweep() -> list[DriftFinding]:
 
     findings: list[DriftFinding] = []
     for table, documented in DOCUMENTED_COLUMNS.items():
-        findings += check_column_drift(table, documented, actual_columns_by_table.get(table, set()), next(iter(documented.values())))
+        findings += check_column_drift(
+            table, documented, actual_columns_by_table.get(table, set()), next(iter(documented.values()))
+        )
     for table, documented in DOCUMENTED_TRIGGERS.items():
         findings += check_trigger_drift(table, documented, actual_triggers_by_table.get(table, set()))
     findings += check_view_drift(DOCUMENTED_VIEWS, actual_views)

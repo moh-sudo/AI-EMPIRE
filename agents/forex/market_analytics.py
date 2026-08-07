@@ -20,8 +20,8 @@ Split deliberately into two layers:
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Literal, Optional
+from datetime import UTC, datetime
+from typing import Literal
 
 from agents.forex._pairs import TRADED_PAIRS
 
@@ -61,8 +61,12 @@ def _get_mt5_timeframe(name: str):
     import MetaTrader5 as mt5
 
     mapping = {
-        "W1": mt5.TIMEFRAME_W1, "D1": mt5.TIMEFRAME_D1, "H4": mt5.TIMEFRAME_H4,
-        "H1": mt5.TIMEFRAME_H1, "M15": mt5.TIMEFRAME_M15, "M5": mt5.TIMEFRAME_M5,
+        "W1": mt5.TIMEFRAME_W1,
+        "D1": mt5.TIMEFRAME_D1,
+        "H4": mt5.TIMEFRAME_H4,
+        "H1": mt5.TIMEFRAME_H1,
+        "M15": mt5.TIMEFRAME_M15,
+        "M5": mt5.TIMEFRAME_M5,
     }
     if name not in mapping:
         raise ValueError(f"Unknown timeframe '{name}'. Allowed: {_TIMEFRAME_NAMES}")
@@ -149,13 +153,17 @@ def fetch_candles(symbol: str, timeframe: str, count: int = 200) -> list[Candle]
     tf = _get_mt5_timeframe(timeframe)
     rates = mt5.copy_rates_from_pos(resolved_symbol, tf, 0, count)
     if rates is None:
-        raise RuntimeError(f"copy_rates_from_pos returned None for {resolved_symbol} (resolved from {symbol})/{timeframe}: {mt5.last_error()}")
+        raise RuntimeError(
+            f"copy_rates_from_pos returned None for {resolved_symbol} (resolved from {symbol})/{timeframe}: {mt5.last_error()}"
+        )
 
     return [
         Candle(
-            time=datetime.fromtimestamp(r["time"], tz=timezone.utc),
-            open=float(r["open"]), high=float(r["high"]),
-            low=float(r["low"]), close=float(r["close"]),
+            time=datetime.fromtimestamp(r["time"], tz=UTC),
+            open=float(r["open"]),
+            high=float(r["high"]),
+            low=float(r["low"]),
+            close=float(r["close"]),
             volume=int(r["tick_volume"]),
         )
         for r in rates
@@ -176,7 +184,9 @@ def _dedupe_adjacent_swings(swings: list[SwingPoint]) -> list[SwingPoint]:
     for s in swings[1:]:
         last = deduped[-1]
         if s.kind == last.kind:
-            is_more_extreme = (s.kind == "high" and s.price >= last.price) or (s.kind == "low" and s.price <= last.price)
+            is_more_extreme = (s.kind == "high" and s.price >= last.price) or (
+                s.kind == "low" and s.price <= last.price
+            )
             if is_more_extreme:
                 deduped[-1] = s
         else:
@@ -192,11 +202,13 @@ def classify_structure(candles: list[Candle], swing_lookback: int = 5) -> Struct
     and two most recent swing lows: both rising = uptrend (HH/HL),
     both falling = downtrend (LH/LL), mixed = ranging."""
     if len(candles) < swing_lookback * 2 + 1:
-        return StructureResult(trend="unknown", notes=[f"Need at least {swing_lookback * 2 + 1} candles, got {len(candles)}."])
+        return StructureResult(
+            trend="unknown", notes=[f"Need at least {swing_lookback * 2 + 1} candles, got {len(candles)}."]
+        )
 
     raw_swings: list[SwingPoint] = []
     for i in range(swing_lookback, len(candles) - swing_lookback):
-        window = candles[i - swing_lookback: i + swing_lookback + 1]
+        window = candles[i - swing_lookback : i + swing_lookback + 1]
         if candles[i].high == max(c.high for c in window):
             raw_swings.append(SwingPoint(index=i, price=candles[i].high, kind="high"))
         elif candles[i].low == min(c.low for c in window):
@@ -208,7 +220,9 @@ def classify_structure(candles: list[Candle], swing_lookback: int = 5) -> Struct
 
     notes: list[str] = []
     if len(highs) < 2 or len(lows) < 2:
-        return StructureResult(trend="unknown", swings=swings, notes=["Not enough swing highs/lows identified yet to classify a trend."])
+        return StructureResult(
+            trend="unknown", swings=swings, notes=["Not enough swing highs/lows identified yet to classify a trend."]
+        )
 
     # Three-way comparison, not a boolean -- equal (flat) values are
     # neither rising nor falling, and treating "not rising" as
@@ -232,7 +246,9 @@ def classify_structure(candles: list[Candle], swing_lookback: int = 5) -> Struct
     return StructureResult(trend=trend, swings=swings, notes=notes)
 
 
-def run_market_analytics_sweep(pairs: Optional[set[str]] = None, timeframe: str = "H4", count: int = 200) -> dict[str, StructureResult]:
+def run_market_analytics_sweep(
+    pairs: set[str] | None = None, timeframe: str = "H4", count: int = 200
+) -> dict[str, StructureResult]:
     """Live entry point: connects to MT5, pulls candles for every
     traded pair on the given timeframe plus DXY (context only, never a
     trade candidate -- Mohamed's own instruction, 2026-07-26, checked
@@ -259,7 +275,7 @@ def run_market_analytics_sweep(pairs: Optional[set[str]] = None, timeframe: str 
         return {}
 
     results: dict[str, StructureResult] = {}
-    dxy_result: Optional[StructureResult] = None
+    dxy_result: StructureResult | None = None
     try:
         for pair in pairs:
             try:

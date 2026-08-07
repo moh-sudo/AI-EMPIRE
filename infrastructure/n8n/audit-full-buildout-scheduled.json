@@ -1,0 +1,53 @@
+{
+  "name": "audit-full-buildout-scheduled",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "id": "c3d4e5f6-bbbb-4a1b-9c1d-000000000001",
+      "name": "10:00 EAT (after all other daily briefings)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8001/run-full-buildout-sweep",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [208, 0],
+      "id": "c3d4e5f6-bbbb-4a1b-9c1d-000000000002",
+      "name": "Run Full Buildout Sweep"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "10:00 EAT (after all other daily briefings)": {
+      "main": [[{ "node": "Run Full Buildout Sweep", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "c4d5e6f7-cccc-4a1b-9c1d-000000000001",
+  "meta": {
+    "instanceId": "2442c103091fc3db3a62ddff01333be403ece2b2cfb7e6ba914ccc82432a7656"
+  },
+  "nodeGroups": [],
+  "id": "Aud1tFullBu1ldout",
+  "tags": []
+}

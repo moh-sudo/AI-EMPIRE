@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Optional
 
 from .models import VALID_CLASSIFICATIONS
 
@@ -11,10 +10,10 @@ CLOUD_MODEL = "claude-sonnet-5"
 class RoutingDecision:
     destination: str  # "local" | "cloud" | "none"
     model_identifier: str
-    capability_matched: Optional[str]
+    capability_matched: str | None
     estimated_cost_usd: float
     blocked: bool = False
-    block_reason: Optional[str] = None
+    block_reason: str | None = None
 
 
 def classify_and_route(
@@ -30,7 +29,10 @@ def classify_and_route(
     classification = data_classification.upper()
     if classification not in VALID_CLASSIFICATIONS:
         return RoutingDecision(
-            "none", "none", None, 0.0,
+            "none",
+            "none",
+            None,
+            0.0,
             blocked=True,
             block_reason=f"Unknown data_classification '{data_classification}'",
         )
@@ -41,7 +43,10 @@ def classify_and_route(
     if classification == "RESTRICTED":
         if pii_detected and not sanitized:
             return RoutingDecision(
-                "none", "none", None, 0.0,
+                "none",
+                "none",
+                None,
+                0.0,
                 blocked=True,
                 block_reason="RESTRICTED data contains unsanitized PII; cloud routing is prohibited and local fallback requires explicit sanitization first.",
             )
@@ -50,7 +55,10 @@ def classify_and_route(
     if classification == "CONFIDENTIAL":
         if pii_detected and not sanitized:
             return RoutingDecision(
-                "none", "none", None, 0.0,
+                "none",
+                "none",
+                None,
+                0.0,
                 blocked=True,
                 block_reason="CONFIDENTIAL data contains PII that Presidio failed to sanitize; request blocked, Severity 2 incident logged.",
             )

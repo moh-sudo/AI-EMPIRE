@@ -5,7 +5,7 @@ column — blocked routing attempts are logged to audit_vault instead, so
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from shared.db import get_client
@@ -30,7 +30,7 @@ class Finding:
 
 
 def _since_24h_iso() -> str:
-    return (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    return (datetime.now(UTC) - timedelta(hours=24)).isoformat()
 
 
 def check_error_rate() -> Finding:
@@ -41,12 +41,7 @@ def check_error_rate() -> Finding:
     client = get_client()
 
     success_count = (
-        client.table("routing_logs")
-        .select("id", count="exact")
-        .gte("created_at", since)
-        .execute()
-        .count
-        or 0
+        client.table("routing_logs").select("id", count="exact").gte("created_at", since).execute().count or 0
     )
     blocked_result = (
         client.table("audit_vault")
@@ -65,13 +60,17 @@ def check_error_rate() -> Finding:
         check="error_rate_24h",
         severity=SEVERITY_HIGH,
         count=(1 if triggered else 0),
-        details=[{
-            "blocked_count": blocked_count,
-            "success_count": success_count,
-            "error_rate": round(rate, 4),
-            "threshold": 0.20,
-            "sample_blocked": blocked_result.data[:5],
-        }] if triggered else [],
+        details=[
+            {
+                "blocked_count": blocked_count,
+                "success_count": success_count,
+                "error_rate": round(rate, 4),
+                "threshold": 0.20,
+                "sample_blocked": blocked_result.data[:5],
+            }
+        ]
+        if triggered
+        else [],
     )
 
 
@@ -99,7 +98,7 @@ def check_unsanitized_cloud_routing() -> Finding:
 
 def check_stale_agent_reviews() -> Finding:
     """Any active agent_registry record with next_review in the past."""
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     result = (
         get_client()
         .table("agent_registry")

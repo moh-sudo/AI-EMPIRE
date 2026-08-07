@@ -31,9 +31,11 @@ def send_email(
     _ensure_configured()
     import resend
 
-    return resend.Emails.send({
-        "from": from_address,
-        "to": [to],
-        "subject": subject,
-        "html": html,
-    })
+    return resend.Emails.send(
+        {
+            "from": from_address,
+            "to": [to],
+            "subject": subject,
+            "html": html,
+        }
+    )

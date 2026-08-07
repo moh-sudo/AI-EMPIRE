@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Deliberately NOT installing the full requirements.txt here --
+      # it includes MetaTrader5, a Windows-only package that can't
+      # install on this Linux runner. requests is the only runtime
+      # dependency the current test suite's import chain actually
+      # needs; add more here only as real tests grow to need them.
+      - name: Install dev tooling
+        run: pip install -r requirements-dev.txt requests
+
+      - name: ruff check
+        run: ruff check .
+
+      - name: ruff format check
+        run: ruff format --check .
+
+      - name: secret scan
+        run: python infrastructure/scripts/secret_scan.py
+
+      - name: pytest
+        run: pytest -v

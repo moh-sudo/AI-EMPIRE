@@ -1,0 +1,53 @@
+{
+  "name": "rii-watchtower-scheduled",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */4 * * *"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0],
+      "id": "b2c3d4e5-9999-4f1a-9f1a-000000000001",
+      "name": "Every 4 hours"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://127.0.0.1:8006/check-watchtowers",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [208, 0],
+      "id": "b2c3d4e5-9999-4f1a-9f1a-000000000002",
+      "name": "Check Watchtowers"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 4 hours": {
+      "main": [[{ "node": "Check Watchtowers", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b3c4d5e6-0000-4f1a-9f1a-000000000001",
+  "meta": {
+    "instanceId": "2442c103091fc3db3a62ddff01333be403ece2b2cfb7e6ba914ccc82432a7656"
+  },
+  "nodeGroups": [],
+  "id": "R11W4tchT0w3rSchd",
+  "tags": []
+}

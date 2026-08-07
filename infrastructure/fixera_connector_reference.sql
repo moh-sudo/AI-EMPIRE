@@ -214,8 +214,37 @@ GRANT SELECT ON
   ai_empire_partner_verification_summary,
   ai_empire_schema_columns_summary,
   ai_empire_schema_triggers_summary,
-  ai_empire_schema_views_summary
+  ai_empire_schema_views_summary,
+  ai_empire_products_summary
 TO ai_empire_reader;
+
+-- Added 2026-07-31: Marketplace Price Regulation support. Fixera's own
+-- app (worker/src/services/supplierProductService.js,
+-- migrations/add_product_approval.sql) already gates new products and
+-- price changes behind Mohamed's admin-dashboard approval -- new rows
+-- default to status='pending', price changes go into pending_price,
+-- the live price is unchanged until approved. What was actually
+-- missing was notification: nothing pinged Mohamed when something was
+-- waiting. This view gives the new agent (agents/fixera/
+-- marketplace_price_regulation.py) read-only visibility so it can
+-- alert on Telegram -- it never approves/rejects anything itself, that
+-- stays exclusively in Fixera's own admin dashboard.
+CREATE OR REPLACE VIEW ai_empire_products_summary AS
+SELECT
+  vp.id,
+  vp.business_id,
+  w.full_name AS supplier_name,
+  w.business_name,
+  vp.name AS product_name,
+  vp.category,
+  vp.price,
+  vp.pending_price,
+  vp.status,
+  vp.in_stock,
+  vp.submitted_at,
+  vp.created_at
+FROM vendor_products vp
+LEFT JOIN workers w ON w.id = vp.business_id AND w.deleted_at IS NULL;
 
 -- Also discovered along the way, worth knowing about independent of this
 -- connector: Fixera's `trg_wallet_gate` trigger and `can_receive_jobs`

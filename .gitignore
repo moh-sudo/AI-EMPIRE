@@ -16,8 +16,17 @@ node_modules/
 infrastructure/n8n/.n8n/
 
 # Runtime state (not source)
-agents/forex/.telegram_offset.json
-agents/fixera/.telegram_offset.json
+agents/*/.telegram_offset.json
+agents/forex/.entry_exit_telegram_offset.json
+agents/forex/.pending_trade_proposals.json
+agents/fixera/.marketing_pending_posts.json
+agents/fixera/.marketplace_price_regulation_seen.json
+
+# Logs
+*.log
+
+# One-off scratch/debug scripts (superseded by tests/)
+_tmp_verify_*.py
 
 # OS
 .DS_Store

@@ -30,8 +30,7 @@ tracking -- everything else is noise for this account.
 
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
 
 import requests
 
@@ -53,7 +52,7 @@ ALERT_IMPACT_LEVELS = {"Medium", "High"}
 class CalendarEvent:
     title: str
     country: str
-    date: Optional[datetime]
+    date: datetime | None
     impact: str
     forecast: str
     previous: str
@@ -63,7 +62,7 @@ class CalendarEvent:
 class CentralBankItem:
     bank: str
     title: str
-    link: Optional[str]
+    link: str | None
 
 
 @dataclass
@@ -78,7 +77,9 @@ class MarketReport:
             lines.append("\nUpcoming/recent high-relevance calendar events:")
             for e in self.relevant_events:
                 when = e.date.strftime("%a %H:%M") if e.date else "time unknown"
-                lines.append(f"  - [{e.impact}] {e.country} {e.title} ({when}) forecast={e.forecast or 'n/a'} previous={e.previous or 'n/a'}")
+                lines.append(
+                    f"  - [{e.impact}] {e.country} {e.title} ({when}) forecast={e.forecast or 'n/a'} previous={e.previous or 'n/a'}"
+                )
         if self.central_bank_items:
             lines.append("\nRecent central bank statements:")
             for item in self.central_bank_items:
@@ -100,11 +101,16 @@ def fetch_forexfactory_calendar(timeout: int = 15) -> list[CalendarEvent]:
                 parsed_date = datetime.fromisoformat(date_str)
             except ValueError:
                 parsed_date = None
-        events.append(CalendarEvent(
-            title=row.get("title", ""), country=row.get("country", ""),
-            date=parsed_date, impact=row.get("impact", ""),
-            forecast=row.get("forecast", ""), previous=row.get("previous", ""),
-        ))
+        events.append(
+            CalendarEvent(
+                title=row.get("title", ""),
+                country=row.get("country", ""),
+                date=parsed_date,
+                impact=row.get("impact", ""),
+                forecast=row.get("forecast", ""),
+                previous=row.get("previous", ""),
+            )
+        )
     return events
 
 
@@ -136,7 +142,7 @@ def build_market_report() -> MarketReport:
     """Live entry point: pulls all free data sources, filters for
     relevance, returns a structured report. Never raises on a single
     source failing -- a down feed shouldn't block the whole report."""
-    report = MarketReport(generated_at=datetime.now(timezone.utc))
+    report = MarketReport(generated_at=datetime.now(UTC))
 
     try:
         all_events = fetch_forexfactory_calendar()
