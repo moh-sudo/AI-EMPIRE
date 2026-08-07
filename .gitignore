@@ -25,6 +25,11 @@ agents/fixera/.marketplace_price_regulation_seen.json
 # Logs
 *.log
 
+# Local voice recordings (runtime artifacts, not source -- and
+# potentially personal/sensitive audio)
+shared/voice/.last_recording.wav
+*.wav
+
 # One-off scratch/debug scripts (superseded by tests/)
 _tmp_verify_*.py
 
