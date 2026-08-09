@@ -18,6 +18,33 @@ AI_EMPIRE is a personal multi-agent system running on a single Windows machine (
 | Audit & Verification | 8001 | Security Audit, Financial Verification, Performance Monitor, Report Verification, QA, Bug Detection — the only division whose job is checking every other division |
 | Systems & Automation | 8007 | Reliability & Monitoring Agent (live); System Architecture (this document); Software Development tooling; the cybersecurity lab; AI Automation, Integration & APIs, Databases & Infrastructure, and the rest of Security & Performance remain unbuilt |
 
+## How a division actually reaches data
+
+Every division shares the same orchestration shape (n8n → a division server → Ollama/Telegram). What differs — and what actually matters — is how each one is allowed to touch the database underneath. Five divisions reach through a key that bypasses every restriction. One reaches through a claim the database itself checks, proven by trying to read what it shouldn't and watching it fail (see "Data layer" below for the full story).
+
+```mermaid
+flowchart TB
+    n8n["n8n<br/>orchestration · port 5678"]
+    n8n -->|"schedule · 30s Telegram poll"| DS["Division Server — one of six, same shape<br/><small>fixera 8003 · forex 8002 · personal 8004 · learning 8005 · rii 8006 · audit 8001 · systems 8007</small>"]
+    DS -->|alerts + listens| TG["Telegram Bot API"]
+    DS -->|"chat() judgment calls"| OL["Ollama — Mac, LAN"]
+
+    DS --> SVC["SUPABASE_SERVICE_KEY<br/><small>used by 5 of 6 divisions</small>"]
+    DS --> JWT["self-signed JWT, app_role claim<br/><small>Systems & Automation only</small>"]
+
+    SVC -->|bypasses RLS| ALL["reaches all 18 tables<br/><small>agent_registry, routing_logs, memory_*,<br/>audit_vault, circuit_breakers, …</small>"]
+    JWT -->|checked by RLS| TWO["reaches exactly two tables<br/><small>circuit_breakers, audit_vault</small>"]
+
+    FX["Fixera Division<br/>port 8003"] -->|"11 read-only views · never raw tables · never writes"| FXDB["Fixera Production Supabase<br/><small>separate account · separate project</small>"]
+
+    classDef broad fill:#b8712c22,stroke:#b8712c,color:#b8712c;
+    classDef narrow fill:#1f8f7d22,stroke:#1f8f7d,color:#1f8f7d;
+    class SVC,ALL broad;
+    class JWT,TWO narrow;
+```
+
+*Amber = broad access, service-role key, RLS bypassed. Teal = scoped access, RLS-enforced, proven by a real negative test (`agent_registry`'s 37 real rows confirmed invisible to the scoped connector, 2026-08-06). Fixera's database sits outside both — reachable only through a permanently read-only connector, never write access.*
+
 ## Service topology
 
 Everything runs locally, started manually per session (nothing persists across a machine restart yet — see "Known gaps" below):
