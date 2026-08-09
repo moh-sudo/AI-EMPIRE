@@ -14,3 +14,7 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]  # so `agents.*`/`shared.*` imports work regardless of how
+                     # pytest is invoked -- `python -m pytest` adds cwd to
+                     # sys.path automatically, but the bare `pytest` command
+                     # (what CI runs) doesn't
