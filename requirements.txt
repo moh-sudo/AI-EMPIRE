@@ -18,3 +18,4 @@ pypdf  # Learning Division -- PDF text extraction
 youtube-transcript-api  # Learning Division -- YouTube video transcripts
 tavily-python  # Research & Innovation Division -- real web search (switched from ddgs/DuckDuckGo scraping, which got blocked in live testing 2026-08-03)
 pyjwt  # Systems & Automation Division -- signs the scoped JWT for shared/systems_db_connector.py (already a transitive dep, pinned directly since we now import it ourselves)
+anthropic  # shared/models/generate.py -- flexible chat provider option, alongside Ollama and OpenAI
