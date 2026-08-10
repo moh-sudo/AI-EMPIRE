@@ -27,11 +27,17 @@ def record_audio(duration_seconds: float, output_path: Path | None = None) -> di
         output_path = Path(__file__).resolve().parent / ".last_recording.wav"
 
     try:
+        # Explicit device index, not PortAudio's implicit default-device
+        # resolution -- on this machine the implicit path hangs
+        # indefinitely opening the stream, while forcing the same
+        # device by index works (confirmed 2026-08-10).
+        input_device = sd.default.device[0]
         recording = sd.rec(
             int(duration_seconds * SAMPLE_RATE),
             samplerate=SAMPLE_RATE,
             channels=CHANNELS,
             dtype="int16",
+            device=input_device,
         )
         sd.wait()
     except Exception as e:
