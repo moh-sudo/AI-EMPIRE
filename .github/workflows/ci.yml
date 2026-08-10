@@ -16,11 +16,17 @@ jobs:
 
       # Deliberately NOT installing the full requirements.txt here --
       # it includes MetaTrader5, a Windows-only package that can't
-      # install on this Linux runner. requests is the only runtime
-      # dependency the current test suite's import chain actually
-      # needs; add more here only as real tests grow to need them.
+      # install on this Linux runner. requests and supabase are the
+      # runtime dependencies the current test suite's import chain
+      # actually needs (supabase specifically because tests/test_learning_engine.py
+      # patches "shared.db.get_client" by string path, which requires
+      # shared/db.py -- and its top-level `from supabase import ...`
+      # -- to actually import; found live 2026-08-10 when this exact
+      # gap made CI fail despite passing locally, where the full
+      # requirements.txt is installed). Add more here only as real
+      # tests grow to need them.
       - name: Install dev tooling
-        run: pip install -r requirements-dev.txt requests
+        run: pip install -r requirements-dev.txt requests supabase
 
       - name: ruff check
         run: ruff check .
