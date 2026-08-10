@@ -1106,7 +1106,15 @@ Built `agents/fixera/ceo_lead.py`, filling the aggregation/reporting role Forex'
 
 **Live-tested for real, with genuine speech:** after the two fixes above, the first several live attempts still came back with empty transcripts -- not a bug, the recorded amplitude was genuinely near-silent (max ~481-1617 out of 32767) despite Windows' own microphone test confirming the mic hits 100%. Diagnosed by recording in the device's native 2-channel/48kHz format and comparing channels directly (both symmetric, ruling out a channel-downmix bug) -- concluded it was mic-distance/loudness in these specific quick test windows, not a code defect. Confirmed by having Mohamed speak loudly and close to the built-in mic: `transcribe()` returned `"Can you hear me very well? Can you hear me? One, two, three. Mike. One, two, three. Mike. One, two..."` -- real, accurate transcription of what was actually said. The whole pipeline (record -> save -> load model -> transcribe) is now proven correct end-to-end on genuine speech, not just tested for errors.
 
-**Unchanged:** text-to-speech is still stubbed. Obsidian's write-integration and the "route intelligently" classification logic are still not started, same as before -- both still blocked on having real transcribed speech to route, which now exists as a real capability.
+**Unchanged (at the time):** text-to-speech was still stubbed. Obsidian's write-integration and the "route intelligently" classification logic were still not started -- both blocked on having real transcribed speech to route, which now exists as a real capability.
+
+### 2026-08-10 (same session, continued) — Text-to-speech wired up, real and live-verified
+
+Immediately followed up STT with TTS. `shared/voice/text_to_speech.py`'s `synthesize()` now runs `pyttsx3` for real (previously an honest "not connected yet" stub), wrapping Windows' built-in SAPI5 voices -- offline, no model download, no heavy native dependency chain unlike `faster-whisper`. Engine lazy-loaded and cached, same pattern as the STT model. Installed cleanly and fast (the Defender exclusion already added for `.venv` paid off immediately here too). Added `pyttsx3` to `requirements.txt`.
+
+**Live-verified with real audio, not just a successful function call:** synthesized a real sentence, played it back through `shared/voice/audio_io.py`'s `play_audio()` (unchanged, already-proven code), and Mohamed confirmed he actually heard it clearly through his speakers. Both `synthesize()` and `play_audio()` completed in single-digit seconds -- no Defender-scanning slowdown this time, confirming the exclusion's benefit generalizes beyond just the Whisper libraries.
+
+Both halves of the local voice pipeline (STT and TTS) are now real, wired, and live-verified end-to-end on the HP laptop. What's left: Obsidian's write-integration, the "route intelligently" classification logic (quick fact -> SM2 engine, general thought -> Obsidian), extending voice-notes/voice-sessions to every division's bot (currently Learning-only), and the larger not-yet-started Twilio phone-calling decision.
 
 ---
 
