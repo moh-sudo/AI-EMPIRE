@@ -61,9 +61,13 @@ class ReadinessAssessment:
 
 
 def fetch_account_trades(account: str) -> list[dict]:
-    from shared.scoped_db import get_scoped_client
+    # Deliberately the blanket key, not the scoped forex_agent client --
+    # see agents/forex/_memory_helpers.py's note: memory_experience has
+    # a pgvector column and RLS rejects every request under the scoped
+    # role for reasons unrelated to policy design (2026-08-11).
+    from shared.db import get_client
 
-    c = get_scoped_client("forex_agent")
+    c = get_client()
     r = (
         c.table("memory_experience")
         .select("id,metadata,outcome,created_at")
@@ -76,9 +80,10 @@ def fetch_account_trades(account: str) -> list[dict]:
 
 
 def fetch_account_psychology_checkins(account: str) -> list[dict]:
-    from shared.scoped_db import get_scoped_client
+    # Deliberately the blanket key -- see fetch_account_trades()'s note above.
+    from shared.db import get_client
 
-    c = get_scoped_client("forex_agent")
+    c = get_client()
     r = (
         c.table("memory_experience")
         .select("id,event_type,outcome,metadata,created_at")

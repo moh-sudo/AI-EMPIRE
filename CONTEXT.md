@@ -1202,6 +1202,30 @@ Two additions to `governance/policies/systems_automation_governance.md`, both gr
 
 Both sections reference the actual work from this same session (migration `0014`, the Systems `_memory_helpers.py` gap found while researching it) as their grounding evidence, not hypothetical examples.
 
+### 2026-08-11 — Migration 0014 run against production; a real pgvector+RLS platform blocker found, diagnosed exhaustively, and worked around
+
+Mohamed ran `0014_five_divisions_rls_jwt.sql` against production Supabase. Declined to run it himself when directly asked, per Database Governance Rule 2 -- explained why (Mohamed-only, no direct execution access to production either way) rather than silently comply or silently refuse.
+
+**Live-verified with real positive and negative access tests**, same rigor as Systems' original 2026-08-06 proof: `personal_agent` reads its own real `personal_habits` row, `learning_agent` reads its own real `learning_cards` rows, `personal_agent` genuinely cannot read `learning_cards` (0 rows, not an empty-table coincidence -- the table has real data), `rii_agent` genuinely cannot read `personal_habits`. All confirmed correct.
+
+**Then found a real, reproducible bug testing the write path.** `rii_agent` inserting its own `memory_experience` row (division='rii', the objectively correct case) was rejected by RLS -- not just the deliberately-wrong cross-division test, the *correct* one too. What followed was an extensive live debugging session (a long back-and-forth of targeted diagnostic SQL queries against production, each one designed to eliminate exactly one hypothesis):
+
+1. Isolated to `memory_experience`/`memory_knowledge` specifically -- `rii_agent` reading its own `rii_watchtowers` worked fine, ruling out a per-division JWT problem.
+2. Confirmed via `pg_policies` the migration's policies existed exactly as written -- ruled out a botched migration run.
+3. Bisected the compound `WITH CHECK` condition down to a bare `division = 'rii'` -- still failed, ruling out condition-combination as the cause.
+4. Confirmed the JWT itself carries the correct `app_role` claim (decoded locally) and that `auth.jwt() ->> 'app_role'` reads it correctly inside Postgres, including a literal boolean simulation of the full check evaluating `true` -- ruled out claim-reading.
+5. Confirmed `information_schema.role_table_grants` and `column_privileges` show full privileges for `authenticated` on every column of both tables (leftover from Phase 1's original blanket setup) -- ruled out missing grants.
+6. Confirmed `SELECT current_user` after `SET LOCAL ROLE authenticated` genuinely returns `authenticated` -- ruled out the role switch silently failing.
+7. Confirmed no triggers exist on the table (`information_schema.triggers`) -- ruled out a hidden BEFORE INSERT mutating the row.
+8. Confirmed `relrowsecurity`/`relforcerowsecurity` are both normal -- ruled out a FORCE RLS oddity.
+9. **The decisive test:** even an unconditionally-true `WITH CHECK (true)` policy, created fresh, still rejected the insert. Then tested on a brand-new throwaway table created within the same transaction (never touched by any prior migration, same shape: `division TEXT`, `embedding VECTOR(768)`) -- **still failed, identically.** This ruled out both "these two tables' specific history" (the `ALTER COLUMN TYPE` from migration `0011`) and "policy logic" entirely -- it's the mere presence of a pgvector `VECTOR` column combined with RLS under a non-superuser role, full stop.
+10. Checked `has_type_privilege('authenticated', 'vector', 'USAGE')` -- true, ruling out type-level privilege.
+11. Web search confirmed pgvector+RLS is a documented, normally-working pattern elsewhere (a common multi-tenant RAG setup) -- meaning this is specific to this Supabase project's configuration/history, not a general incompatibility, but the exact cause was never identified despite exhausting every conventional hypothesis.
+
+**Decision, matching the exact precedent of Rule 1's Supavisor pooler blocker:** stop chasing it, document it as a real, reproduced, unexplained platform issue, and route around it in code. Reverted just the `memory_experience`/`memory_knowledge` call sites across all 5 divisions' `_memory_helpers.py` (plus forex's `performance_review.py` SELECT reads) back to the blanket key -- every other table from `0014` stays scoped and proven working. Left the `0014` policies on these two tables in place in the database (harmless, simply unused via this path) rather than drop them, matching how migration `0009`'s blocked scoped-role was left in place rather than deleted. Live-verified the revert: a real `safe_add_experience()` call via the blanket key succeeded, with a real generated embedding and real UUID.
+
+**Full cleanup performed on production** before finishing: every diagnostic policy created during the debugging session (`diag_test_policy`, `diag_true_test`, `diag_final_test`) dropped, every test row inserted during testing deleted by `event_type`, confirmed via a final `pg_policies` query showing only the 2 real `memory_experience` policies from `0014` remain. Nothing was left behind that Mohamed didn't ask for.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
