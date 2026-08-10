@@ -18,9 +18,9 @@ Two jobs, both real:
    - "URL <category>: <url>" -- fetches and extracts article text
    - "VIDEO <category>: <url>" -- YouTube transcript
    - A Telegram document upload (PDF) with the category as the caption
-   - A Telegram voice note with the category as the caption (still
-     depends on shared/voice/speech_to_text.py, which IS stubbed --
-     fails closed with an honest reason until that's connected)
+   - A Telegram voice note with the category as the caption (real
+     faster-whisper transcription via shared/voice/speech_to_text.py
+     as of 2026-08-10)
 
 Each ingested source goes through
 agents.learning.content_transform.ingest_and_generate() (real Ollama
@@ -63,24 +63,6 @@ def _read_session() -> dict:
 
 def _save_session(session: dict) -> None:
     SESSION_FILE.write_text(json.dumps(session))
-
-
-def _download_telegram_file(token: str, file_id: str, suffix: str) -> str | None:
-    """Real download -- Telegram's getFile + file-content endpoints.
-    Returns a local path, or None on failure."""
-    try:
-        resp = requests.get(f"https://api.telegram.org/bot{token}/getFile", params={"file_id": file_id}, timeout=15)
-        resp.raise_for_status()
-        file_path = resp.json()["result"]["file_path"]
-
-        DOWNLOADS_DIR.mkdir(exist_ok=True)
-        local_path = DOWNLOADS_DIR / f"{file_id}{suffix}"
-        file_resp = requests.get(f"https://api.telegram.org/file/bot{token}/{file_path}", timeout=30)
-        file_resp.raise_for_status()
-        local_path.write_bytes(file_resp.content)
-        return str(local_path)
-    except (requests.RequestException, KeyError):
-        return None
 
 
 def _start_or_continue_review() -> str:
@@ -165,7 +147,9 @@ def _handle_document(msg: dict, token: str) -> str | None:
     if not doc:
         return None
     category = (msg.get("caption") or "uncategorized").strip()
-    local_path = _download_telegram_file(token, doc["file_id"], ".pdf")
+    from shared.telegram_files import download_telegram_file
+
+    local_path = download_telegram_file(token, doc["file_id"], ".pdf", DOWNLOADS_DIR)
     if not local_path:
         return "Couldn't download that document."
 
@@ -182,7 +166,9 @@ def _handle_voice(msg: dict, token: str) -> str | None:
     if not voice:
         return None
     category = (msg.get("caption") or "uncategorized").strip()
-    local_path = _download_telegram_file(token, voice["file_id"], ".ogg")
+    from shared.telegram_files import download_telegram_file
+
+    local_path = download_telegram_file(token, voice["file_id"], ".ogg", DOWNLOADS_DIR)
     if not local_path:
         return "Couldn't download that voice note."
 

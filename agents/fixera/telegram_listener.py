@@ -47,6 +47,7 @@ from pathlib import Path
 import requests
 
 STATE_FILE = Path(__file__).resolve().parent / ".telegram_offset.json"
+DOWNLOADS_DIR = Path(__file__).resolve().parent / ".downloads"
 
 
 def _read_last_update_id() -> int | None:
@@ -157,6 +158,16 @@ def check_for_briefing_requests() -> dict:
         if chat_id != str(expected_chat_id):
             continue  # not Mohamed -- consume (offset still advances) but never act
         text = (msg.get("text") or "").strip()
+        voice = msg.get("voice")
+        if not text and voice:
+            from shared.telegram_files import download_telegram_file
+            from shared.voice.speech_to_text import transcribe
+
+            local_path = download_telegram_file(token, voice["file_id"], ".ogg", DOWNLOADS_DIR)
+            if local_path:
+                transcription = transcribe(local_path)
+                if transcription.get("ok"):
+                    text = transcription["text"].strip()
         if text.lower() == "briefing":
             briefing_triggered = True
             continue

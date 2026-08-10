@@ -1152,6 +1152,14 @@ Asked Mohamed two things before building, since both were genuinely his call, no
 
 **Fixed with `_drain_queue()`**, a non-blocking helper that empties any pending backlog, called both at the top of the main loop (so clap detection always checks genuinely fresh audio, never a growing backlog) and right before the final capture step (exactly where the bug manifested). Verified in isolation, not just by re-reading the code: simulated a 100-chunk (10s) stale backlog, confirmed `_drain_queue()` cleared it to zero, then confirmed a fresh 2-second collection window correctly collected ~1.80s of audio afterward -- matching real-time expectations instead of ballooning past the requested duration.
 
+### 2026-08-10 (same session, continued) — Voice-note handling extended to every division's bot
+
+Mohamed's choice for what to build next, after voice-everywhere's core pieces (STT/TTS/Obsidian/routing/wake-word) were done: extend voice-note handling from Learning's bot (the only one that had it) to all 6 other division bots (Fixera, Forex, Personal & Education, Research & Innovation, Audit & Verification, Systems & Automation).
+
+**Extracted `shared/telegram_files.py`'s `download_telegram_file()`** from Learning's `telegram_listener.py`, where it was a private, division-local helper. Unlike `_telegram.py`/`telegram_listener.py` files themselves (deliberately duplicated per division per this project's established convention, since they carry real division-specific logic), this function has zero division awareness -- it's the same two Telegram API calls (`getFile` then fetch the content) regardless of which bot is asking, so duplicating it 6 more times would just be needless copy-paste. Learning's own call sites were refactored to use the shared version too, so there's exactly one implementation, not two.
+
+**Wired into each of the 6 remaining bots' message-dispatch loop**, right after `text = (msg.get("text") or "").strip()`: if there's no text but there is a voice note, download it and transcribe it via the now-real `shared/voice/speech_to_text.py`, then let the existing text-dispatch logic underneath handle the transcribed text exactly as if it had been typed -- a voice note is just an alternate input method, not a separate feature per division (deliberately different from Learning's own voice handling, which does something division-specific: generates flashcards; the other 6 divisions just answer questions or run commands from whatever text they're given, so routing transcribed text into that same existing logic was the natural, minimal-diff approach). Verified: full lint pass, full existing test suite still green (25/25) after the change, confirming the refactor didn't break Learning's existing behavior and the new wiring is syntactically sound across all 6 files.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
