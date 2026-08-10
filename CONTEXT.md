@@ -1116,6 +1116,16 @@ Immediately followed up STT with TTS. `shared/voice/text_to_speech.py`'s `synthe
 
 Both halves of the local voice pipeline (STT and TTS) are now real, wired, and live-verified end-to-end on the HP laptop. What's left: Obsidian's write-integration, the "route intelligently" classification logic (quick fact -> SM2 engine, general thought -> Obsidian), extending voice-notes/voice-sessions to every division's bot (currently Learning-only), and the larger not-yet-started Twilio phone-calling decision.
 
+### 2026-08-10 (same session, continued) — Obsidian write-integration built and live-verified
+
+Asked Mohamed two things before building, since both were genuinely his call, not derivable from the code: where his vault lives (he doesn't have one yet -- created fresh at `~/Documents/AI_EMPIRE_Vault`) and how captures should be organized (one markdown file per capture in `Inbox/`, not appended to a running daily note).
+
+**Implemented:** `shared/obsidian/vault.py`'s `write_note(text, source_type="voice", source_reference=None)`. Obsidian needs no SDK/API to write into -- a vault is just a folder of markdown files, so this is genuinely just `Path.write_text()` with a timestamped filename and a YAML frontmatter block (`created`, `source_type`, `source_reference` -- the same `source_type`/`source_reference` pair already used on learning cards, kept consistent across the project). Vault location configurable via `OBSIDIAN_VAULT_PATH` (added to `.env` and `.env.example`) rather than hardcoded, same pattern as every other configurable path/provider this session.
+
+**Live-verified, not just syntax-checked:** wrote a real note using the actual transcribed text from the earlier live-speech STT test ("Can you hear me very well?..."), then read the resulting file back to confirm the frontmatter and body were both correct.
+
+**Deliberately not built yet:** the "route intelligently" classification logic. Right now `write_note()` and the learning engine's `add_card()` are both real, callable functions, but nothing decides *which one* a given piece of transcribed speech should go to -- that's the next real piece, and it needs actual routing/classification logic (likely a judgment call via `shared/models/generate.py`'s `chat()`), not just wiring.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
