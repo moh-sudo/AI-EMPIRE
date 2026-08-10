@@ -55,9 +55,12 @@ def run_voice_session(division: str) -> None:
         return
     print(f"Microphone detected: {devices[0]['name']}")
 
+    from shared.agent_identities import name_for
+
+    name = name_for(division)
     answer_fn = _get_answer_fn(division)
     print(
-        f"Voice session started for {division.upper()}. Press Enter to record a {RECORD_SECONDS:.0f}s question, Ctrl+C to quit."
+        f"Voice session started with {name} ({division.upper()}). Press Enter to record a {RECORD_SECONDS:.0f}s question, Ctrl+C to quit."
     )
 
     while True:
@@ -86,7 +89,7 @@ def run_voice_session(division: str) -> None:
 
         result = answer_fn(text)
         reply = result["reply"]
-        print(f"{division.upper()}: {reply}")
+        print(f"{name}: {reply}")
 
         speech = synthesize(reply)
         if speech.get("ok"):
