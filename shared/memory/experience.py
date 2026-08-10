@@ -11,12 +11,18 @@ def add_experience(
     outcome: str | None = None,
     metadata: dict | None = None,
     embedding: list[float] | None = None,
+    client=None,
 ) -> dict:
+    """client: an already-scoped Supabase client (e.g.
+    shared.scoped_db.get_scoped_client("<division>_agent")) for a
+    division migrated off the blanket service-role key. Defaults to
+    shared.db.get_client() for any caller not yet migrated -- adding
+    this parameter never changes existing callers' behavior."""
     if embedding is None:
         embedding = generate_embedding(context)
 
     result = (
-        get_client()
+        (client or get_client())
         .table("memory_experience")
         .insert(
             {

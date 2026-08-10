@@ -61,9 +61,9 @@ class ReadinessAssessment:
 
 
 def fetch_account_trades(account: str) -> list[dict]:
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
-    c = get_client()
+    c = get_scoped_client("forex_agent")
     r = (
         c.table("memory_experience")
         .select("id,metadata,outcome,created_at")
@@ -76,9 +76,9 @@ def fetch_account_trades(account: str) -> list[dict]:
 
 
 def fetch_account_psychology_checkins(account: str) -> list[dict]:
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
-    c = get_client()
+    c = get_scoped_client("forex_agent")
     r = (
         c.table("memory_experience")
         .select("id,event_type,outcome,metadata,created_at")

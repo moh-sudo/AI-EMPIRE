@@ -10,15 +10,22 @@ def add_knowledge(
     source: str | None = None,
     metadata: dict | None = None,
     embedding: list[float] | None = None,
+    client=None,
 ) -> dict:
     """embedding is optional so callers/tests can skip the OpenAI call and
     still exercise the DB round-trip; production callers should omit it
-    and let this function generate one."""
+    and let this function generate one.
+
+    client: an already-scoped Supabase client (e.g.
+    shared.scoped_db.get_scoped_client("<division>_agent")) for a
+    division migrated off the blanket service-role key. Defaults to
+    shared.db.get_client() for any caller not yet migrated -- adding
+    this parameter never changes existing callers' behavior."""
     if embedding is None:
         embedding = generate_embedding(content)
 
     result = (
-        get_client()
+        (client or get_client())
         .table("memory_knowledge")
         .insert(
             {

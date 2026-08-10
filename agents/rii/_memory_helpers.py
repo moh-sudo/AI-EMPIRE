@@ -6,7 +6,7 @@ deliberately duplicated, not cross-imported.
 
 from openai import APIError
 
-from shared.db import get_client
+from shared.scoped_db import get_scoped_client
 
 
 def safe_add_experience(
@@ -20,6 +20,7 @@ def safe_add_experience(
 ) -> dict:
     from shared.memory.experience import add_experience
 
+    client = get_scoped_client("rii_agent")
     try:
         return add_experience(
             division=division,
@@ -28,11 +29,11 @@ def safe_add_experience(
             agent_id=agent_id,
             outcome=outcome,
             metadata=metadata,
+            client=client,
         )
     except (RuntimeError, APIError):
         result = (
-            get_client()
-            .table("memory_experience")
+            client.table("memory_experience")
             .insert(
                 {
                     "division": division,
@@ -59,6 +60,7 @@ def safe_add_knowledge(
 ) -> dict:
     from shared.memory.knowledge import add_knowledge
 
+    client = get_scoped_client("rii_agent")
     try:
         return add_knowledge(
             division=division,
@@ -66,11 +68,11 @@ def safe_add_knowledge(
             agent_id=agent_id,
             source=source,
             metadata=metadata,
+            client=client,
         )
     except (RuntimeError, APIError):
         result = (
-            get_client()
-            .table("memory_knowledge")
+            client.table("memory_knowledge")
             .insert(
                 {
                     "division": division,

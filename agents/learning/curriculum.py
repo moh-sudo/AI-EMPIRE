@@ -162,9 +162,9 @@ def seed_curriculum() -> dict:
     """One-time setup -- inserts all 6 phases + subjects from
     CURRICULUM_SEED. Safe to call again (checks for existing phases
     first, won't duplicate)."""
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
-    client = get_client()
+    client = get_scoped_client("learning_agent")
     existing = client.table("curriculum_phases").select("phase_number").execute()
     if existing.data:
         return {"seeded": False, "reason": f"Already seeded ({len(existing.data)} phase(s) exist)."}
@@ -201,9 +201,9 @@ def get_current_subject() -> dict:
     """The current subject is simply the first non-completed subject in
     phase/sequence order -- no separate pointer to keep in sync, just
     derived from real status each time."""
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
-    client = get_client()
+    client = get_scoped_client("learning_agent")
     phases = client.table("curriculum_phases").select("*").order("phase_number").execute().data
     for phase in phases:
         subjects = (
@@ -232,9 +232,9 @@ def start_current_subject() -> dict:
     if subject["status"] == "not_started":
         from datetime import datetime
 
-        from shared.db import get_client
+        from shared.scoped_db import get_scoped_client
 
-        get_client().table("curriculum_subjects").update(
+        get_scoped_client("learning_agent").table("curriculum_subjects").update(
             {
                 "status": "in_progress",
                 "started_at": datetime.now(UTC).isoformat(),
@@ -247,13 +247,13 @@ def start_current_subject() -> dict:
 def mark_current_subject_complete() -> dict:
     from datetime import datetime
 
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
     current = get_current_subject()
     if not current["found"]:
         return {"ok": False, "reason": "No current subject to complete."}
 
-    get_client().table("curriculum_subjects").update(
+    get_scoped_client("learning_agent").table("curriculum_subjects").update(
         {
             "status": "completed",
             "completed_at": datetime.now(UTC).isoformat(),
@@ -265,9 +265,9 @@ def mark_current_subject_complete() -> dict:
 
 
 def get_progress_summary() -> dict:
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
-    client = get_client()
+    client = get_scoped_client("learning_agent")
     all_subjects = client.table("curriculum_subjects").select("status").execute().data
     total = len(all_subjects)
     completed = sum(1 for s in all_subjects if s["status"] == "completed")

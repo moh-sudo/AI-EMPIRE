@@ -102,10 +102,10 @@ class SM2LearningEngine:
         if card_id == related_card_id:
             return {"ok": False, "reason": "A card cannot be linked to itself."}
 
-        from shared.db import get_client
+        from shared.scoped_db import get_scoped_client
 
         result = (
-            get_client()
+            get_scoped_client("learning_agent")
             .table("learning_card_links")
             .upsert({"card_id": card_id, "related_card_id": related_card_id}, on_conflict="card_id,related_card_id")
             .execute()
@@ -116,9 +116,9 @@ class SM2LearningEngine:
         """Bidirectional -- a link created in either direction shows up
         from either card's perspective, matching how Obsidian's
         backlinks work."""
-        from shared.db import get_client
+        from shared.scoped_db import get_scoped_client
 
-        client = get_client()
+        client = get_scoped_client("learning_agent")
         forward = client.table("learning_card_links").select("related_card_id").eq("card_id", card_id).execute()
         backward = client.table("learning_card_links").select("card_id").eq("related_card_id", card_id).execute()
 

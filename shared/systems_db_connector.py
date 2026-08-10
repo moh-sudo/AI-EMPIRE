@@ -2,12 +2,15 @@
 Division agents -- Reliability & Monitoring's equivalent of
 shared/fixera_connector.py.
 
-Uses the same Supabase REST API transport as shared/db.py's
-get_client() (supabase-py's create_client() -- the same mechanism
-every agent in every division already uses successfully, never had a
-connection issue), but signs its own narrowly-scoped JWT instead of
-using SUPABASE_SERVICE_KEY. That JWT carries a custom 'app_role':
-'systems_agent' claim, and RLS policies on circuit_breakers/audit_vault
+The JWT-minting/client mechanism now lives in shared/scoped_db.py
+(extracted 2026-08-10 -- it had zero Systems-specific logic, the same
+two-step dance regardless of which division's claim is being minted).
+This module keeps its own table-specific helper functions
+(get_circuit_breaker(), write_audit_vault(), etc.), which ARE real
+Systems-specific logic and stay here.
+
+That JWT carries a custom 'app_role': 'systems_agent' claim, and RLS
+policies on circuit_breakers/audit_vault
 (infrastructure/database/migrations/0010_systems_agent_rls_jwt.sql)
 only allow SELECT/INSERT/UPDATE on circuit_breakers and SELECT/INSERT
 on audit_vault to requests carrying that exact claim -- nothing else,
@@ -27,48 +30,15 @@ entirely by never touching Supavisor/raw Postgres connections -- it's
 pure REST, same as everything else in this codebase.
 """
 
-import os
-import time
 from typing import Any
 
-import jwt
-from supabase import Client, create_client
+from supabase import Client
 
-_client: Client | None = None
-_JWT_LIFETIME_SECONDS = 10 * 365 * 24 * 60 * 60  # 10 years -- a service credential, not a user session
-
-
-def _mint_scoped_jwt() -> str:
-    secret = os.environ["SUPABASE_JWT_SECRET"]
-    now = int(time.time())
-    payload = {
-        "role": "authenticated",
-        "app_role": "systems_agent",
-        "iat": now,
-        "exp": now + _JWT_LIFETIME_SECONDS,
-    }
-    return jwt.encode(payload, secret, algorithm="HS256")
+from shared.scoped_db import get_scoped_client
 
 
 def get_client() -> Client:
-    """Two-token pattern, required by Supabase's gateway (Kong): the
-    'apikey' header must be one of the project's real, known API keys
-    (the public-safe anon key here) for the request to even reach
-    PostgREST at all -- a custom-signed JWT there gets rejected outright
-    with 'Invalid API key' before PostgREST ever evaluates it. The
-    scoped JWT (carrying 'app_role': 'systems_agent') goes in a
-    *separate* Authorization bearer, set via postgrest.auth() after
-    client creation -- that's the one PostgREST actually decodes for
-    RLS's auth.jwt() claims. Found live 2026-08-06 after the client
-    initially used the same custom JWT for both headers and got
-    rejected at the gateway layer."""
-    global _client
-    if _client is None:
-        url = os.environ["SUPABASE_URL"]
-        anon_key = os.environ["SUPABASE_ANON_KEY"]
-        _client = create_client(url, anon_key)
-        _client.postgrest.auth(_mint_scoped_jwt())
-    return _client
+    return get_scoped_client("systems_agent")
 
 
 _ALLOWED_CIRCUIT_BREAKER_FIELDS = {

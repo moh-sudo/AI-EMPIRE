@@ -15,25 +15,32 @@ from datetime import UTC, datetime
 
 
 def add_watchtower(topic: str) -> dict:
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
-    result = get_client().table("rii_watchtowers").insert({"topic": topic}).execute()
+    result = get_scoped_client("rii_agent").table("rii_watchtowers").insert({"topic": topic}).execute()
     return result.data[0]
 
 
 def list_watchtowers() -> list[dict]:
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
-    result = get_client().table("rii_watchtowers").select("*").eq("active", True).order("created_at").execute()
+    result = (
+        get_scoped_client("rii_agent")
+        .table("rii_watchtowers")
+        .select("*")
+        .eq("active", True)
+        .order("created_at")
+        .execute()
+    )
     return result.data
 
 
 def remove_watchtower(topic: str) -> dict:
     """Matches by case-insensitive topic text (not id) -- simpler for
     a Telegram command than requiring the user to know a UUID."""
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
-    client = get_client()
+    client = get_scoped_client("rii_agent")
     matches = client.table("rii_watchtowers").select("id,topic").eq("active", True).execute().data
     match = next((m for m in matches if m["topic"].strip().lower() == topic.strip().lower()), None)
     if not match:
@@ -55,10 +62,10 @@ def check_one_watchtower(watchtower: dict, max_results: int = 5) -> dict:
     seen = set(watchtower.get("seen_urls") or [])
     new_results = [r for r in search["results"] if r["url"] not in seen]
 
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
     updated_seen = list(seen | {r["url"] for r in search["results"]})
-    get_client().table("rii_watchtowers").update(
+    get_scoped_client("rii_agent").table("rii_watchtowers").update(
         {
             "seen_urls": updated_seen,
             "last_checked_at": datetime.now(UTC).isoformat(),

@@ -66,7 +66,7 @@ def test_link_cards_writes_via_upsert():
     fake_client.table.return_value.upsert.return_value.execute.return_value.data = [
         {"card_id": "a", "related_card_id": "b"}
     ]
-    with patch("shared.db.get_client", return_value=fake_client):
+    with patch("shared.scoped_db.get_scoped_client", return_value=fake_client):
         result = eng.link_cards("a", "b")
 
     assert result["ok"] is True
@@ -109,7 +109,7 @@ def test_get_linked_cards_is_bidirectional():
 
     fake_client.table.side_effect = table_side_effect
 
-    with patch("shared.db.get_client", return_value=fake_client):
+    with patch("shared.scoped_db.get_scoped_client", return_value=fake_client):
         linked = eng.get_linked_cards("b")
 
     assert len(linked) == 1
@@ -121,7 +121,7 @@ def test_get_linked_cards_returns_empty_without_a_query_when_no_links():
     fake_client = MagicMock()
     fake_client.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
 
-    with patch("shared.db.get_client", return_value=fake_client):
+    with patch("shared.scoped_db.get_scoped_client", return_value=fake_client):
         linked = eng.get_linked_cards("lonely-card")
 
     assert linked == []

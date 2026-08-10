@@ -20,10 +20,10 @@ DEFAULT_EASE_FACTOR = 2.5
 def add_card(
     category: str, front: str, back: str, source_type: str = "manual", source_reference: str | None = None
 ) -> dict:
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
     result = (
-        get_client()
+        get_scoped_client("learning_agent")
         .table("learning_cards")
         .insert(
             {
@@ -40,11 +40,11 @@ def add_card(
 
 
 def get_due_cards(limit: int = 20) -> list[dict]:
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
     today = datetime.now(UTC).date().isoformat()
     result = (
-        get_client()
+        get_scoped_client("learning_agent")
         .table("learning_cards")
         .select("*")
         .eq("active", True)
@@ -61,10 +61,16 @@ def list_categories() -> list[dict]:
     and how many are due right now -- lets Mohamed see what topics
     exist without having to remember exact spelling/casing he used
     before."""
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
     today = datetime.now(UTC).date().isoformat()
-    result = get_client().table("learning_cards").select("category, next_review_date").eq("active", True).execute()
+    result = (
+        get_scoped_client("learning_agent")
+        .table("learning_cards")
+        .select("category, next_review_date")
+        .eq("active", True)
+        .execute()
+    )
 
     counts: dict[str, dict] = {}
     for row in result.data:
@@ -78,11 +84,11 @@ def list_categories() -> list[dict]:
 
 
 def get_due_count() -> int:
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
     today = datetime.now(UTC).date().isoformat()
     result = (
-        get_client()
+        get_scoped_client("learning_agent")
         .table("learning_cards")
         .select("id", count="exact")
         .eq("active", True)
@@ -122,9 +128,9 @@ def rate_card(card_id: str, rating: str) -> dict:
     if rating.upper() not in ("AGAIN", "GOOD", "EASY"):
         return {"ok": False, "reason": f"Invalid rating '{rating}' -- must be AGAIN, GOOD, or EASY."}
 
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
-    client = get_client()
+    client = get_scoped_client("learning_agent")
     existing = client.table("learning_cards").select("*").eq("id", card_id).execute()
     if not existing.data:
         return {"ok": False, "reason": f"No card found with id {card_id}."}

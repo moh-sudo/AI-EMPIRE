@@ -1,10 +1,13 @@
 """Habit Tracker -- Personal Division.
 
 Real, working data layer against AI_EMPIRE's own Supabase (not
-Fixera's -- this is Mohamed's own personal data, no connector/scoping
-needed, full read/write access via shared.db.get_client()). Two
-tables: personal_habits (the habit list) and personal_habit_completions
-(one row per habit per day actually done) -- see
+Fixera's). Uses shared.scoped_db.get_scoped_client("personal_agent") --
+a narrowly-scoped JWT, not the blanket service-role key -- RLS on
+personal_habits/personal_habit_completions only allows requests
+carrying that exact claim (infrastructure/database/migrations/
+0014_five_divisions_rls_jwt.sql). Two tables: personal_habits (the
+habit list) and personal_habit_completions (one row per habit per day
+actually done) -- see
 infrastructure/database/migrations/0004_personal_division_habits.sql.
 
 Deliberately no LLM anywhere in this module -- habit tracking is
@@ -19,23 +22,36 @@ from datetime import date as date_cls
 
 
 def add_habit(name: str) -> dict:
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
-    result = get_client().table("personal_habits").insert({"name": name}).execute()
+    result = get_scoped_client("personal_agent").table("personal_habits").insert({"name": name}).execute()
     return result.data[0]
 
 
 def list_active_habits() -> list[dict]:
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
-    result = get_client().table("personal_habits").select("*").eq("active", True).order("created_at").execute()
+    result = (
+        get_scoped_client("personal_agent")
+        .table("personal_habits")
+        .select("*")
+        .eq("active", True)
+        .order("created_at")
+        .execute()
+    )
     return result.data
 
 
 def deactivate_habit(habit_id: str) -> dict:
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
-    result = get_client().table("personal_habits").update({"active": False}).eq("id", habit_id).execute()
+    result = (
+        get_scoped_client("personal_agent")
+        .table("personal_habits")
+        .update({"active": False})
+        .eq("id", habit_id)
+        .execute()
+    )
     return result.data[0] if result.data else {}
 
 
@@ -46,12 +62,12 @@ def mark_habit_done(habit_id: str, on_date: date_cls | None = None) -> dict:
     logic)."""
     from postgrest.exceptions import APIError
 
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
     target_date = (on_date or datetime.now(UTC).date()).isoformat()
     try:
         result = (
-            get_client()
+            get_scoped_client("personal_agent")
             .table("personal_habit_completions")
             .insert({"habit_id": habit_id, "completed_date": target_date})
             .execute()
@@ -66,13 +82,17 @@ def mark_habit_done(habit_id: str, on_date: date_cls | None = None) -> dict:
 def get_today_status(on_date: date_cls | None = None) -> dict:
     """Returns every active habit with whether it's done for the given
     date (defaults to today, UTC)."""
-    from shared.db import get_client
+    from shared.scoped_db import get_scoped_client
 
     target_date = (on_date or datetime.now(UTC).date()).isoformat()
     habits = list_active_habits()
 
     completions = (
-        get_client().table("personal_habit_completions").select("habit_id").eq("completed_date", target_date).execute()
+        get_scoped_client("personal_agent")
+        .table("personal_habit_completions")
+        .select("habit_id")
+        .eq("completed_date", target_date)
+        .execute()
     )
     done_ids = {row["habit_id"] for row in completions.data}
 
