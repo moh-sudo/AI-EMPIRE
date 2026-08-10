@@ -1126,6 +1126,16 @@ Asked Mohamed two things before building, since both were genuinely his call, no
 
 **Deliberately not built yet:** the "route intelligently" classification logic. Right now `write_note()` and the learning engine's `add_card()` are both real, callable functions, but nothing decides *which one* a given piece of transcribed speech should go to -- that's the next real piece, and it needs actual routing/classification logic (likely a judgment call via `shared/models/generate.py`'s `chat()`), not just wiring.
 
+### 2026-08-10 (same session, continued) — "Route intelligently" built and live-verified; wake-word + agent-naming scoped for next time
+
+**Implemented:** `interfaces/voice_capture.py`, mirroring `voice_session.py`'s reasoning for living under `interfaces/` rather than `agents/learning/` or `shared/` -- this decides between two independent, unchanged destinations (Learning's `ingest_and_generate()`, Obsidian's `write_note()`), so it's cross-cutting routing, not agent logic belonging to either side. `classify_capture()` makes the actual decision via `shared/models/generate.py`'s `chat()` (Ollama by default, same pattern as every other classification task this project uses) -- a short prompt asking for `LEARNING: <category>` or `OBSIDIAN`, parsed from the reply. Fails safe on purpose: a failed model call or unparseable reply defaults to Obsidian rather than dropping the capture, since a mis-filed note is recoverable and a lost one isn't.
+
+**Hit the Ollama LAN-IP issue again mid-task** -- classification calls timed out connecting to `192.168.100.17:11434`. Same class of problem as earlier sessions (Ollama's GUI app not picking up `OLLAMA_HOST=0.0.0.0`, needing `OLLAMA_HOST=0.0.0.0 ollama serve` run directly in Terminal on the Mac instead). Mohamed restarted it, IP turned out to still be `.17` (unchanged this time), confirmed reachable via a direct `curl` to the Mac before retrying.
+
+**Live-verified with two genuinely different real inputs, proving actual dispatch, not just classification:** "The mitochondria is the powerhouse of the cell" correctly routed to Learning and created 3 real flashcards (real Supabase rows, real UUIDs). "I think we should redesign the onboarding flow next quarter..." correctly routed to Obsidian and wrote a real note. Both used `source_reference="routing logic test"` -- these are test data sitting in real production tables/vault, flagged to Mohamed for cleanup alongside the commit ask.
+
+**Scoped but not yet built, per Mohamed's 2026-08-10 direction:** a hands-free wake trigger (clap arms a short listening window, then "wake up" actually fires a capture -- chosen over clap-only or phrase-only for fewer false positives without needing continuous speech detection) running as an **always-on background service**, which will need the same "survive a restart" treatment as n8n/division servers (see "Nothing persists across a machine restart" in Known Gaps) plus a real look at the project's own Energy-Aware Computing standard before committing to something that runs 24/7. Also scoped: naming each of the 6 division "CEOs" plus a "supreme boss" overseeing all of them -- a personality/branding layer, names not yet chosen.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
