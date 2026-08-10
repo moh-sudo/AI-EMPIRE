@@ -1,6 +1,6 @@
 # Systems & Automation Division Governance Policy
 
-**Owner:** Systems & Automation Division (all agents: Reliability & Monitoring, and any future agent under System Architecture, Software Development, AI Automation, Integration & APIs, Databases & Infrastructure, Security & Performance, Tools & Internal Systems)
+**Owner:** Systems & Automation Division (Abdullahi; all agents: Reliability & Monitoring, and any future agent under System Architecture, Software Development, AI Automation, Integration & APIs, Databases & Infrastructure, Security & Performance, Tools & Internal Systems)
 **Authority:** Subordinate to the Constitution and to `governance/policies/self_healing_governance.md`. This policy may not be amended by any AI agent — only by Mohamed.
 **Written by:** Claude, at Mohamed's explicit request, 2026-08-06 — this division's agents are the first in AI_EMPIRE with the standing ability to kill and restart real running processes, which is meaningfully more consequential than any read-only Audit check and needs its own explicit rules before more agents are added here.
 
@@ -21,7 +21,43 @@
 9. **Anything Beyond "Restart a Known-Safe Local Process" Needs the Two-Agent Rule.** Restarting n8n or a division's own FastAPI server (both stateless, both already fully reversible by re-running the same start command) is the ceiling of what any agent in this division may do unsupervised. Anything past that — modifying code, changing infrastructure configuration, installing software, touching a database schema — falls under `self_healing_governance.md`'s existing Two-Agent Rule and Rule 8 (risk-based approval): proposed, never auto-applied, until a real risk classifier exists.
 10. **New Agent = New Governance Line Item.** Before any future agent is built under this division's other 6 pillars (System Architecture, Software Development, AI Automation, Integration & APIs, Databases & Infrastructure, Security & Performance), its specific action scope gets added to this document and reviewed with Mohamed first — this policy is meant to grow with the division, not be written once and left behind it.
 
-## Current implementation status (v0.1, 2026-08-06; Workflow Builder added 2026-08-10)
+## Escalation Chain (added 2026-08-10, at Mohamed's request)
+
+Names the people/personas behind `self_healing_governance.md`'s existing abstract flow (`Systems Agent → Independent Verification Agent → Mohamed's Approval → Deploy`) rather than introducing a new mechanism — this is a readability/accountability layer on top of what already governs high-risk actions, not a new bypass or a new automated step.
+
+**Abdullahi (Systems & Automation) → Huda (Audit & Verification) → Abdi/"Loverboy" (supreme boss, overseeing all divisions) → Mohamed (final authority).**
+
+- **Abdullahi** is where a Systems & Automation action originates or is proposed (Reliability & Monitoring's restart proposals, Workflow Builder's generated files, a future Databases & Infrastructure migration).
+- **Huda** is where independent verification happens — Audit & Verification's existing role (`checks.py`'s cross-division reads, `bug_detection.py`) already does this in practice; this chain makes explicit that Huda checking *whether Abdullahi's agents followed their own governance*, not just whether the output looks correct, is real scope for her division, not implied.
+- **Abdi** is named as the escalation point above individual division chiefs — today this is an identity/persona only (`shared/agent_identities.py`), not a coded verification step; no agent currently executes "as Abdi." Named here so the chain has a real place for cross-division escalation once/if that capability is built, without pretending it exists today.
+- **Mohamed** remains the actual approval authority for anything past Rule 9's ceiling — unchanged from `self_healing_governance.md`'s own current-status note: **v0.1 still means every fix/change requires his explicit approval before anything is applied.** Naming Huda and Abdi in the chain doesn't relax that; it just gives the "Independent Verification Agent" step in the existing flow a real name and a real division behind it.
+
+## Database Governance Pillar (Databases & Infrastructure — added 2026-08-10)
+
+Scoped narrowly and honestly: this documents the rules that have actually governed every real database change made in this project so far (a written-down existing practice, not a new aspirational one), and applies to database work project-wide, not just Systems & Automation's own tables — the pillar owns *how* database changes get made across AI_EMPIRE, the same way Audit's checks apply project-wide despite living under one division. There is no coded "Database Agent" yet; this governs whoever does database work (currently Claude, at Mohamed's direction) until one exists.
+
+**Purpose:** Maintain reliable, secure, and scalable data infrastructure for AI_EMPIRE's own Supabase project.
+
+**Non-negotiable rules:**
+1. Schema changes go through a numbered migration file in `infrastructure/database/migrations/` — never a manual, undocumented change against production.
+2. No agent (including Claude) ever runs a migration against production Supabase directly. Mohamed runs every migration himself, after reviewing the SQL — the actual, current mechanism, not a future control.
+3. No data is ever deleted without Mohamed's explicit, informed confirmation — demonstrated live 2026-08-09 when a stray leftover embedding *value* was cleared but the row itself was preserved, only after Mohamed explicitly confirmed nothing else was removed.
+4. RLS is applied wherever a scoped credential exists for a table's access pattern, extended incrementally (Systems & Automation first, 5 more divisions 2026-08-10 via `0014_five_divisions_rls_jwt.sql`) — least privilege by construction, not by convention.
+5. Naming conventions are followed: migration files numbered sequentially, JWT claims follow `<division>_agent`, RLS policy names follow `<claim>_<operation>_<table>`.
+6. Every structural change is documented in `ARCHITECTURE.md`/`CONTEXT.md` before being considered done — not just written to a migration file and left there.
+7. Referential integrity and existing constraints (e.g. `personal_habit_completions`'s `UNIQUE(habit_id, completed_date)`, `audit_vault`'s immutability trigger) are never bypassed by a new migration without being called out explicitly.
+8. A migration touching existing rows (not just adding new tables/columns/policies) is flagged to Mohamed as higher-risk before he's asked to run it — never silently bundled in with routine additive changes.
+9. Huda can audit whether these rules were actually followed, not just whether the resulting schema works — verifying process, not only outcome.
+
+**Authority:**
+- Can: propose new migrations, design RLS policies, propose schema/query improvements, identify real database gaps (e.g. Rule 1's Supavisor blocker, or Systems' own `_memory_helpers.py` still using the blanket key — found live 2026-08-10 while researching the 5-division migration).
+- Cannot: run any migration against production (Mohamed's exclusive action), delete production data, disable RLS/security controls, or change the core access-pattern architecture (RLS+JWT vs. blanket key) without review.
+
+**Escalation:** any change beyond the "Can" list follows the Escalation Chain above.
+
+## Current implementation status (v0.1, 2026-08-06; Workflow Builder + Database Governance added 2026-08-10)
+
+**RLS+JWT least-privilege access, extended per Database Governance's Rule 4.** Fixera, Forex, Personal & Education, Learning, and RII now use `shared/scoped_db.py`'s `get_scoped_client(app_role)` (extracted from `shared/systems_db_connector.py`, which had zero Systems-specific logic in its own client-minting code) with a `<division>_agent` JWT claim, matching Systems' own pattern — scoped to exactly what each division's code actually does, confirmed by a real audit of every `.table()` call across all 6 divisions rather than guessed (`infrastructure/database/migrations/0014_five_divisions_rls_jwt.sql`). **Not yet run against production** — Mohamed's step, per Database Governance Rule 2. Deliberately deferred: audit (needs genuine cross-division, unfiltered reads — a different access shape) and the multi-writer tables (`audit_vault`, `routing_logs`, `agent_registry` — no single division's claim fits without more design work). Also surfaced by the same research: Systems' own `_memory_helpers.py` still uses the blanket key, a real gap in the division's own "done" scoping from 2026-08-06, not yet fixed.
 
 **Workflow Builder Agent** (`agents/systems/workflow_builder.py`, AI Automation pillar — the division's first agent outside Reliability & Monitoring) complies with Rule 9 by construction: its only action is writing a *new* n8n workflow JSON file to `infrastructure/n8n/` for Mohamed to review and manually import — it never connects to a live n8n instance, never imports or activates a workflow, and never modifies or overwrites an existing workflow file (a name collision is refused, not resolved automatically). This is "proposed, never auto-applied" without needing a runtime Two-Agent Rule check, because the human review step *is* Mohamed choosing to import the file himself, same as every one of the 16 existing workflows already required. An Ollama judgment call (via `shared/models/generate.py`'s `chat()`) parses a plain-language description into structured parameters (division, trigger type/value, endpoint path, workflow name), validated against the known division→port map; a separate, deterministic Python template then builds the exact JSON matching the established two-node (`scheduleTrigger` → `httpRequest`) pattern every existing workflow uses — the model only interprets intent, it never writes the JSON directly, so a bad or ambiguous description fails closed (`{"ok": False, "reason": ...}`) rather than producing malformed or hallucinated workflow structure.
 

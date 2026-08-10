@@ -105,7 +105,7 @@ This exists specifically so **Orbit** (Andy Matuschak's spaced-repetition resear
 `governance/constitution/` and `governance/policies/` hold the real (not aspirational) rules currently in force:
 - `self_healing_governance.md` — the 12-rule policy + Two-Agent Rule governing any autonomous bug-fixing (Audit's Bug Detection).
 - `law_13_security.md` + `security_audit_policy.md` — the security audit's scope and honest status (what's really checked vs. what doesn't apply yet to a single-machine setup).
-- `systems_automation_governance.md` — the 10-rule policy for Systems & Automation specifically, since it's the first division whose agents can kill/restart real processes. Includes the real status of database-level access enforcement (Rule 1) and the cybersecurity lab's credential air-gap (Rule 8).
+- `systems_automation_governance.md` — the 10-rule policy for Systems & Automation specifically, since it's the first division whose agents can kill/restart real processes. Includes the real status of database-level access enforcement (Rule 1) and the cybersecurity lab's credential air-gap (Rule 8). Also has an **Escalation Chain** (names the people/personas behind `self_healing_governance.md`'s existing abstract verification flow — Abdullahi → Huda → Abdi → Mohamed — rather than a new mechanism) and a **Database Governance Pillar** (2026-08-10, written down after the fact from what's actually governed every real database change so far: migrations only, Mohamed runs every one himself, RLS extended incrementally, nothing deleted without explicit confirmation).
 
 ## Known gaps (honest, not hidden)
 
