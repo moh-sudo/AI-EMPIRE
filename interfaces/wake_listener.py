@@ -69,6 +69,25 @@ def _save_wav(samples: np.ndarray, path: Path) -> None:
         wf.writeframes(samples.tobytes())
 
 
+def _drain_queue(audio_q: "queue.Queue[np.ndarray]") -> None:
+    """Discards any backlog sitting in the queue, non-blockingly. The
+    InputStream callback fills this queue in real time regardless of
+    whether the main loop is keeping up -- if a slow step (a
+    transcription or Ollama call) lets the loop fall behind by tens of
+    seconds, backlog piles up. Without draining it, the next
+    _collect_seconds() call would pull that stale backlog first, and
+    since an already-queued item returns instantly (not the ~0.1s a
+    live chunk takes), it'd collect far more than the requested
+    duration of old audio instead of fresh audio -- confirmed live
+    2026-08-10, an 8s capture request came back as 17.5s of
+    backlog-contaminated audio."""
+    while True:
+        try:
+            audio_q.get_nowait()
+        except queue.Empty:
+            return
+
+
 def _collect_seconds(audio_q: "queue.Queue[np.ndarray]", seconds: float, seed: list | None = None) -> np.ndarray:
     """Drains the shared audio queue for the given duration, optionally
     starting from already-collected chunks (seed) so no audio between
@@ -109,6 +128,7 @@ def listen_forever() -> None:
     ):
         last_trigger = 0.0
         while True:
+            _drain_queue(audio_q)
             chunk = audio_q.get()
             if time.time() - last_trigger < COOLDOWN_SECONDS:
                 continue
@@ -128,6 +148,7 @@ def listen_forever() -> None:
 
             last_trigger = time.time()
             print(f"{VOICE}: confirmed -- go ahead, recording for {CAPTURE_SECONDS:.0f}s...")
+            _drain_queue(audio_q)
             capture = _collect_seconds(audio_q, CAPTURE_SECONDS)
             _save_wav(capture, snippet_path)
 
