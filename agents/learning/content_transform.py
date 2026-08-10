@@ -116,15 +116,16 @@ def generate_flashcards_from_text(text: str, max_chars: int = 6000) -> dict:
 
 def ingest_and_generate(text: str, category: str, source_type: str, source_reference: str | None = None) -> dict:
     """Full pipeline: text -> Ollama flashcard generation -> real cards
-    saved via agents.learning.srs.add_card()."""
+    saved via the active learning engine (agents.learning.engine)."""
     generation = generate_flashcards_from_text(text)
     if not generation.get("ok"):
         return {"ok": False, "stage": "generation", "reason": generation["reason"]}
 
-    from agents.learning.srs import add_card
+    from agents.learning.engine import get_learning_engine
 
+    engine = get_learning_engine()
     created = [
-        add_card(category, c["front"], c["back"], source_type=source_type, source_reference=source_reference)
+        engine.add_card(category, c["front"], c["back"], source_type=source_type, source_reference=source_reference)
         for c in generation["cards"]
     ]
     return {"ok": True, "cards_created": len(created), "cards": created}

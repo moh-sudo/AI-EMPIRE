@@ -84,9 +84,9 @@ def _download_telegram_file(token: str, file_id: str, suffix: str) -> str | None
 
 
 def _start_or_continue_review() -> str:
-    from agents.learning.srs import get_due_cards
+    from agents.learning.engine import get_learning_engine
 
-    due = get_due_cards(limit=1)
+    due = get_learning_engine().get_due_cards(limit=1)
     if not due:
         _save_session({})
         return "No cards due for review right now. Nice work staying on top of it."
@@ -106,7 +106,7 @@ def _handle_show() -> str:
 
 
 def _handle_rating(rating: str) -> str:
-    from agents.learning.srs import rate_card
+    from agents.learning.engine import get_learning_engine
 
     session = _read_session()
     if not session or "card_id" not in session:
@@ -114,7 +114,7 @@ def _handle_rating(rating: str) -> str:
     if not session.get("answer_shown"):
         return 'Reply "SHOW" first to see the answer before rating.'
 
-    result = rate_card(session["card_id"], rating)
+    result = get_learning_engine().rate_card(session["card_id"], rating)
     if not result.get("ok"):
         return f"Couldn't rate that card: {result.get('reason')}"
 
@@ -245,13 +245,13 @@ def _handle_text(text: str) -> str:
     if text_upper in ("AGAIN", "GOOD", "EASY"):
         return _handle_rating(text_upper)
     if text_upper == "DUE":
-        from agents.learning.srs import get_due_count
+        from agents.learning.engine import get_learning_engine
 
-        return f"{get_due_count()} card(s) due for review."
+        return f"{get_learning_engine().get_due_count()} card(s) due for review."
     if text_upper == "CATEGORIES":
-        from agents.learning.srs import list_categories
+        from agents.learning.engine import get_learning_engine
 
-        categories = list_categories()
+        categories = get_learning_engine().list_categories()
         if not categories:
             return "No categories yet -- add some content first."
         lines = [f"  - {c['category']}: {c['total']} card(s), {c['due']} due" for c in categories]
