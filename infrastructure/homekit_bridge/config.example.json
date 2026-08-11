@@ -1,0 +1,20 @@
+{
+  "bridge": {
+    "name": "AI_EMPIRE Bridge",
+    "username": "REPLACE-WITH-A-RANDOM-MAC-STYLE-ADDRESS-EG-0E:3E:41:8A:2C:11",
+    "port": 51826,
+    "pin": "REPLACE-WITH-A-PIN-FORMAT-EG-031-45-154"
+  },
+  "platforms": [
+    {
+      "platform": "HttpWebHooks",
+      "webhook_port": "51828",
+      "pushbuttons": [
+        {
+          "id": "tradingview",
+          "name": "Open TradingView"
+        }
+      ]
+    }
+  ]
+}

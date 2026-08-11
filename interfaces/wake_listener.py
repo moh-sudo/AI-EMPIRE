@@ -52,6 +52,15 @@ WAKE_PHRASE = "wake up"
 CAPTURE_SECONDS = 8.0
 COOLDOWN_SECONDS = 2.0  # ignore further claps right after a trigger, avoid double-fires
 
+# Phone-side actions, dispatched to shared/homekit_bridge.py instead of
+# route_capture() -- these are commands to execute, not thoughts to
+# capture/classify. Checked as a plain substring match on the
+# transcribed text; add more phrase -> accessory_id pairs here as more
+# Shortcuts automations get set up on the phone.
+VOICE_COMMANDS = {
+    "open tradingview": "tradingview",
+}
+
 
 def is_clap(chunk: np.ndarray, threshold: int = CLAP_THRESHOLD) -> bool:
     """Pure, testable: a chunk counts as a clap if its peak amplitude
@@ -159,13 +168,25 @@ def listen_forever() -> None:
                 continue
 
             print(f"You said: {text}")
-            result = route_capture(text)
-            if not result.get("ok"):
-                print(f"{VOICE}: routing failed -- {result.get('reason', 'unknown error')}")
-            elif result["destination"] == "learning":
-                print(f"{VOICE}: sent to Learning -- {result['cards_created']} flashcard(s) created.")
+            lowered = text.lower()
+            command_accessory = next((acc for phrase, acc in VOICE_COMMANDS.items() if phrase in lowered), None)
+
+            if command_accessory:
+                from shared.homekit_bridge import trigger_accessory
+
+                command_result = trigger_accessory(command_accessory)
+                if command_result.get("ok"):
+                    print(f"{VOICE}: done -- triggered '{command_accessory}' on your phone.")
+                else:
+                    print(f"{VOICE}: command failed -- {command_result.get('reason')}")
             else:
-                print(f"{VOICE}: sent to Obsidian -- {result['path']}")
+                result = route_capture(text)
+                if not result.get("ok"):
+                    print(f"{VOICE}: routing failed -- {result.get('reason', 'unknown error')}")
+                elif result["destination"] == "learning":
+                    print(f"{VOICE}: sent to Learning -- {result['cards_created']} flashcard(s) created.")
+                else:
+                    print(f"{VOICE}: sent to Obsidian -- {result['path']}")
 
             print(f"\n{VOICE}: listening for a clap...")
 

@@ -15,6 +15,14 @@ node_modules/
 # n8n
 infrastructure/n8n/.n8n/
 
+# Homebridge -- persist/ holds the actual HomeKit pairing keypair and
+# accessory identifiers, real credential material, not source.
+# config.json's bridge.pin is the real HomeKit pairing PIN -- same
+# .env/.env.example pattern as everywhere else in this project.
+infrastructure/homekit_bridge/persist/
+infrastructure/homekit_bridge/config.json
+infrastructure/homekit_bridge/homebridge.log
+
 # Runtime state (not source)
 agents/*/.telegram_offset.json
 agents/forex/.entry_exit_telegram_offset.json
