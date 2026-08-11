@@ -1226,6 +1226,16 @@ Mohamed ran `0014_five_divisions_rls_jwt.sql` against production Supabase. Decli
 
 **Full cleanup performed on production** before finishing: every diagnostic policy created during the debugging session (`diag_test_policy`, `diag_true_test`, `diag_final_test`) dropped, every test row inserted during testing deleted by `event_type`, confirmed via a final `pg_policies` query showing only the 2 real `memory_experience` policies from `0014` remain. Nothing was left behind that Mohamed didn't ask for.
 
+### 2026-08-11 (same session, continued) — Integration & APIs pillar: TradingView webhook confirmed live, real secret-exposure bug found and fixed
+
+Mohamed's pick for the next Systems & Automation pillar. `infrastructure/tradingview_webhook` already existed (built an earlier session) but had never been confirmed actually deployed. Checked via the Vercel MCP tools rather than guessing: found a Vercel project (`ai-empire`, linked to this GitHub repo, root directory set to the webhook's subfolder) auto-deploying on every push, with `lambdaRuntimeStats: {"nodejs":1}` on the latest deployment -- exactly one Node function, matching `api/webhook.js`. Confirmed live with a safe negative test first (deliberately wrong secret, real HTTP round-trip to the real deployed function, got the exact 401 the code should produce, no side effects).
+
+**All 5 required env vars confirmed set** by Mohamed checking Vercel's UI directly. Wanted a full end-to-end proof (real Telegram message, real Supabase row), but `WEBHOOK_SECRET` is marked "Sensitive" in Vercel -- write-only by design, can never be read back once saved, even by Mohamed. Worked around it correctly: rotated the secret to a new value Mohamed chose and therefore knew, redeployed, then ran a real `Invoke-WebRequest` from PowerShell with the new value -- `200 {"received":true}`, a real Telegram message arrived, confirmed by Mohamed.
+
+**Verifying the Supabase side surfaced a real security bug**, not just confirmation: `memory_knowledge` rows written by the webhook had `metadata.raw` containing the *entire* raw request body -- including the `secret` field itself, in plain text. Since `memory_knowledge` is read by much of the codebase via the broad service-role key, every real alert was silently re-exposing the current webhook secret inside the very database it exists to gatekeep. Found two exposed instances: the brand-new secret from this session's own verification test, and an older one from an untracked 2026-07-27 test (meaning this bug predates this session, was just never caught until now). Fixed `webhook.js` to strip `secret` before logging (destructure it out, log everything else). Deleted both rows containing exposed secrets from production immediately. **`WEBHOOK_SECRET` needs rotating again** -- the value set earlier this session was itself exposed by the bug before the fix landed, so it's also compromised now; flagged clearly to Mohamed, not silently left as a loose end.
+
+**Still open:** whether TradingView's own Pine Script alert has actually been configured with the (soon-to-be-rotated-again) secret, and whether the TradingView plan-upgrade question (their webhook-alerts feature needs at least the paid Essential tier) is resolved -- both need Mohamed's input, not something checkable from this side.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)

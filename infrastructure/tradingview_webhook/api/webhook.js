@@ -26,6 +26,14 @@ export default async function handler(req, res) {
   }
 
   const message = typeof body.message === 'string' ? body.message : JSON.stringify(body);
+  // Never store the secret itself -- it was only ever meant to
+  // authenticate this request, not become a persisted value. Found
+  // live 2026-08-11: the previous version logged the full raw body
+  // (including "secret") into memory_knowledge, a table readable by
+  // most of the codebase via the broad service-role key -- meaning
+  // every alert silently re-exposed the current webhook secret in the
+  // database it was supposed to be gatekeeping access to.
+  const { secret: _secret, ...safeBody } = body;
 
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
@@ -44,7 +52,7 @@ export default async function handler(req, res) {
           agent_id: 'tradingview-webhook',
           content: message,
           source: 'tradingview_alert',
-          metadata: { raw: body },
+          metadata: { raw: safeBody },
         }),
       });
     } catch (err) {
