@@ -21,3 +21,5 @@ youtube-transcript-api  # Learning Division -- YouTube video transcripts
 tavily-python  # Research & Innovation Division -- real web search (switched from ddgs/DuckDuckGo scraping, which got blocked in live testing 2026-08-03)
 pyjwt  # Systems & Automation Division -- signs the scoped JWT for shared/systems_db_connector.py (already a transitive dep, pinned directly since we now import it ourselves)
 anthropic  # shared/models/generate.py -- flexible chat provider option, alongside Ollama and OpenAI
+pip-audit  # Audit's security_audit.py + Systems' dependency_remediation.py -- real CVE data against installed packages; was only working incidentally (already present in this venv), now a real pinned dependency
+packaging  # Systems & Automation Division -- proper version comparison in agents/systems/dependency_remediation.py (already a transitive dep, pinned directly since we now import it ourselves)
