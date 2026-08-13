@@ -1332,6 +1332,8 @@ Mohamed then asked Claude to start the Systems & Automation server so the endpoi
 
 **Scope, stated honestly:** this only covers n8n and the Systems & Automation server (8007) -- the two services the daily host-security-scan schedule actually needs. Every other division server (8001-8006) is unaffected and still needs manual starting each session, same gap as before.
 
+**Note for anyone reading `audit_vault` later:** the repeated stop/start cycles during this testing produced a real burst of ~25 `health_check_state_change` rows in `audit_vault`, all today between **12:10 and 12:26 UTC** (warning -> open_circuit -> fallback -> recovery_test -> fallback, agent `systems-reliability-monitor-v0.1`). That's Reliability & Monitoring correctly doing its job -- the systems server genuinely was going up and down repeatedly because I was restarting it on purpose. Not a real incident, not left in as an oversight: `audit_vault` is immutable by design (Law 9's trigger blocks UPDATE/DELETE unconditionally, "regardless of role" -- confirmed live 2026-08-13 rather than assumed), so this note exists in place of clearing those rows, which was asked about and correctly isn't possible for anyone, including Claude with the service-role key.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
