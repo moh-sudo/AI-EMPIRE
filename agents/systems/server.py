@@ -10,6 +10,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 
+from agents.systems.host_security_scan import run_host_security_sweep
 from agents.systems.reliability_monitor import run_health_check_sweep
 from agents.systems.telegram_listener import check_for_systems_requests
 
@@ -24,3 +25,17 @@ def health_check():
 @app.post("/check-telegram")
 def check_telegram():
     return check_for_systems_requests()
+
+
+@app.post("/host-security-scan")
+def host_security_scan():
+    """Daily scheduled trigger (infrastructure/n8n/systems-host-security-scan-scheduled.json).
+    Port scan (nmap) only -- no malware_scan_path. A live test found
+    clamscan over the real Downloads folder via WSL2's /mnt/c/ bridge
+    doesn't finish within the 600s subprocess timeout (a known WSL2
+    slow-filesystem-bridge characteristic, not a bug); Mohamed's call
+    was to keep the daily schedule to the fast, proven-reliable port
+    scan and run clamscan on-demand for a specific path when wanted,
+    rather than guess a timeout long enough to cover an unknown real
+    duration."""
+    return run_host_security_sweep()

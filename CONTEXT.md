@@ -1308,6 +1308,18 @@ Mohamed asked Claude to install `nmap`/`clamav` directly -- declined per the gov
 
 ---
 
+### 2026-08-13 (later same day) -- Host Security Scanning wired for daily automatic scheduling; real WSL2 /mnt/c/ performance limit found and honestly worked around
+
+Mohamed asked to schedule the sweep to run automatically. Followed this codebase's established n8n pattern exactly (`scheduleTrigger` -> `httpRequest`, matching `systems-health-check-scheduled.json`/`audit-agent-daily.json`): added a `/host-security-scan` POST endpoint to `agents/systems/server.py`, and wrote `infrastructure/n8n/systems-host-security-scan-scheduled.json` (daily 06:00 cron, `active: false` -- Mohamed still imports and activates it himself in n8n, same boundary Workflow Builder's own workflows already respect).
+
+**Two real decisions needed before building, not guessed:** asked Mohamed how often (chose Daily) and whether the scheduled run should also `clamscan` a folder, since nmap alone is cheap but clamscan needs a real path only Mohamed can pick sensibly (chose "also scan Downloads daily" -- the most common real malware entry point).
+
+**Then live-tested the actual chosen config before shipping it, and found a real, honest limit:** a `clamscan` of the real Downloads folder did not finish within the 600s subprocess timeout -- confirmed this wasn't a hang by watching the real `clamscan` process directly inside Kali (`ps aux`): it was genuinely running, in Linux's `D` (uninterruptible disk-wait) state, burning real CPU, for the full 600 seconds before the code's own timeout correctly killed it (fail-closed exactly as designed, confirmed no orphaned process was left behind afterward). Root cause: WSL2's `/mnt/c/` filesystem bridge is known to be slow for I/O-heavy work -- the same class of issue already hit this session with npm/pip installs, just now affecting `clamscan`'s per-file reads instead. (Along the way, an initial HTTP-based test of the same endpoint appeared to hang with no visible process at all -- turned out to be a stale/confused test artifact from an earlier interrupted attempt, not a real bug; a clean direct Python call reproduced the real, honest clamscan-vs-Downloads timeout cleanly.)
+
+**Rather than guess a bigger timeout number for an unknown real duration, presented the finding honestly and asked again.** Mohamed's call: keep the daily schedule to the fast, proven-reliable port scan only, drop Downloads from it -- `clamscan` remains available on demand for any path, same as it already was for the ad-hoc `agents/systems` test earlier today. Updated `/host-security-scan` to call `run_host_security_sweep()` with no `malware_scan_path`. Live-verified the final version over real HTTP: `curl -X POST http://127.0.0.1:8007/host-security-scan` returned `{"ok":true,"target_ip":"172.29.32.1","open_ports":[],"malware_scan":null}` in well under a second. 75 tests passing, `ruff` clean.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
