@@ -1294,6 +1294,20 @@ Built `agents/systems/host_security_scan.py` against the scope written the previ
 
 ---
 
+### 2026-08-13 (later same day) -- Mohamed installed nmap/clamav himself; full live verification with real tools
+
+Mohamed asked Claude to install `nmap`/`clamav` directly -- declined per the governance boundary written the day before (Host Security Scanning Pillar's "Cannot" list, matching Database Governance Rule 2's migration-running precedent: environment changes are run by Mohamed, never by Claude, even on direct request). Gave him the exact `apt install` command to run himself.
+
+**Real detour along the way:** Mohamed had forgotten the Kali user's password. Fixed correctly, not by trying to crack or bypass it: since the Windows account already fully controls the WSL2 VM, `wsl -d kali-linux -u root` drops into a root shell with no password needed at all (Windows already trusts the launching user with full VM control), from which `passwd <user>` resets it -- the standard, intended WSL2 recovery path, not a workaround. Identified the real username (`lowkeyboy100`, not the `mohamed_amin` seen in Ubuntu's own systemd messages the previous session -- each distro has its own default user) by reading `/etc/passwd` as root rather than guessing. Mohamed ran the actual `passwd` command himself, in his own terminal -- Claude never saw or handled the new password.
+
+**`nmap` and `clamav` turned out to already be installed** (`apt install` reported "already the newest version" for both) -- likely present from the original Kali WSL app image after all, just not on `$PATH` the way `which` expects, or installed during an earlier, forgotten step. `sudo freshclam` hit a lock-file error, diagnosed (read-only check, not a change) as `clamav-freshclam.service` already running as a systemd service, actively downloading the same database Mohamed's manual run was trying to fetch -- harmless collision, not a real problem; the service updates the database on its own.
+
+**Full live end-to-end verification, matching Dependency Remediation's own verification depth:** `_tool_available()` now correctly reports both `/usr/bin/nmap` and `/usr/bin/clamscan` present. A real `scan_open_ports()` against this machine found 0 open ports in the top 100. A real `scan_files_for_malware()` against `agents/systems` found 0 infected files. A real `run_host_security_sweep()` sent a Telegram alert (confirmed received by Mohamed) and wrote a real `audit_vault` row (confirmed by direct query, `id: 14aca77b-3e78-4669-9a59-9b421502a937`).
+
+**One honest gap found in the verification process itself, not the agent:** the first end-to-end test script called `run_host_security_sweep()` without first calling `load_dotenv()` (unlike `server.py`, which always loads `.env` before importing anything) -- the Telegram send and `audit_vault` write both failed on missing Supabase/Telegram env vars, but failed *silently*, exactly as `run_host_security_sweep()` is designed to do (a logging/alert failure must never hide the real scan result). That's correct behavior for the agent, but it meant the first verification run looked successful (`ok: True`, real scan data) while quietly not having actually alerted or logged anything -- caught only by deliberately re-querying `audit_vault` afterward rather than trusting the return value alone. Re-ran with `.env` loaded properly; both the alert and the DB write worked.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
