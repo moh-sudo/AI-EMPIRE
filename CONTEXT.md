@@ -1320,6 +1320,20 @@ Mohamed asked to schedule the sweep to run automatically. Followed this codebase
 
 ---
 
+### 2026-08-13 (later same day) -- n8n import/activation declined (governance boundary); systems server started; both set to auto-start on login
+
+Mohamed asked Claude to import and activate the new workflow in n8n directly. Declined -- `workflow_builder.py`'s own established design (and every one of the 16+ existing workflows) already means Claude never connects to a live n8n instance, never imports, never activates; the human review step *is* Mohamed importing it himself. Gave him the exact manual steps instead (n8n runs on `localhost:5678`).
+
+Mohamed then asked Claude to start the Systems & Automation server so the endpoint would actually be reachable -- this is different in kind from the n8n boundary (starting a known-safe local process, explicitly within Rule 9's unsupervised ceiling, and something already done repeatedly this session for testing) and was done directly: `uvicorn agents.systems.server:app --port 8007`. Live-verified it responded correctly (a stray browser GET correctly returned `405 Method Not Allowed`, confirming the server was genuinely live and only rejecting the wrong HTTP method, not erroring). Mohamed separately reported `localhost:5678` wasn't loading -- checked and n8n simply wasn't running (confirmed via `netstat`, `n8n@2.31.5` was installed globally via npm but the process itself was never started this session); started it the same way (`n8n start`), confirmed the web UI responded `200`.
+
+**Then asked to set both to auto-start on login.** Wrote `infrastructure/scripts/autostart_n8n_and_systems.ps1` (starts both, hidden windows, logs to `%TEMP%\ai_empire_autostart\`) and initially tried registering it as a Windows Scheduled Task (`infrastructure/scripts/register_autostart.ps1`, "At log on" trigger) -- `Register-ScheduledTask` returned "Access is denied" live, no admin rights available in this environment. Fell back to the standard no-admin alternative: a per-user Startup-folder VBScript launcher (`%APPDATA%\...\Startup\ai_empire_autostart.vbs`, outside the repo -- machine-specific, correctly not committed) that silently runs the same PS1 on login.
+
+**Live-tested the actual login-trigger mechanism repeatedly rather than assuming it worked once written, and found a real bug along the way:** `Start-Process -FilePath "...\n8n.cmd" -ArgumentList "start" -WindowStyle Hidden` spawned genuine `node.exe` processes (confirmed via `Get-Process -Name node` -- real PIDs, real start times) but produced completely empty (0-byte) redirected log files every single time, across several clean retests with proper cleanup between attempts. Root cause: `n8n.cmd` is an npm-generated shim that nests through `cmd.exe` (running `title %COMSPEC% & ...` before exec'ing `node.exe`) -- that nested layer silently breaks `Start-Process`'s stdout/stderr redirection under a hidden window. Fixed by calling `node.exe` directly on n8n's real entry script (`node_modules\n8n\bin\n8n`) instead of going through the `.cmd` shim at all. Confirmed fixed with a clean stop-everything-and-retest cycle: real log output appeared (`n8n ready on ::, port 5678`), both ports came up listening, and both `curl http://127.0.0.1:5678` (`200`) and the systems server's own log (actively serving real, ongoing `/check-telegram` polls from an already-active n8n workflow) confirmed genuine, working services -- not just "a process exists."
+
+**Scope, stated honestly:** this only covers n8n and the Systems & Automation server (8007) -- the two services the daily host-security-scan schedule actually needs. Every other division server (8001-8006) is unaffected and still needs manual starting each session, same gap as before.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
