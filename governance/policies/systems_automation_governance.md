@@ -55,6 +55,29 @@ Scoped narrowly and honestly: this documents the rules that have actually govern
 
 **Escalation:** any change beyond the "Can" list follows the Escalation Chain above.
 
+## Host Security Scanning Pillar (Security & Performance — scoped 2026-08-12, not yet built)
+
+Scoped per Rule 10, before any code is written, following the exact same discipline as the Database Governance Pillar and Dependency Remediation Agent above. Mohamed's original ask: give this pillar access to real Linux-style security scanning tools against the actual machine. Scoped down through two rounds of questions rather than built on the first idea: target confirmed as "this machine only" for v1 (network-wide scanning explicitly deferred to a later, separate decision), fix policy confirmed as propose-only (matching Rule 9 and every other agent in this division).
+
+**Real research findings that shaped the scope (2026-08-12), not assumptions:**
+- The existing Kali Linux WSL2 distro (installed earlier this session for the air-gapped cybersecurity lab, Rule 8) ships **bare** — `nmap`, `lynis`, `chkrootkit`, `rkhunter`, and `clamscan`/`clamav` are all *not* pre-installed, contrary to Kali's usual reputation. They would need `apt install`.
+- WSL2's networking here is NAT mode (Kali sits on its own `172.29.x.x` virtual subnet, separate from the real host network) — this rules out most of the originally-assumed tool set: `lynis`, `rkhunter`, and `chkrootkit` audit whatever OS they run on, so run from Kali they would audit **Kali itself**, not the Windows host. Not useful for the stated goal.
+- Two tools remain genuinely useful against the real host through this path: **`nmap`** (reaches the Windows host's real IP through the WSL2 NAT gateway — a real open-port/listening-service inventory, filling the exact gap Audit's own security policy already marks as "not built") and **`clamscan`** (ClamAV can scan files on the Windows filesystem via WSL2's `/mnt/c/` mount — a real second-opinion malware scan of actual files).
+- A real, unrelated platform conflict was found and fixed along the way: VMware Workstation running (even just its tray app) competes with WSL2's Hyper-V-based VM creation for the CPU's virtualization extensions, causing WSL2 to fail to boot entirely (`0x800705B4` timeout) — affects both existing WSL2 distros, not Kali-specific. Documented here because it means this pillar's scans can fail with a confusing timeout, not a clean "tool missing" error, if VMware Workstation is running a VM at scan time. Not something an agent should try to fix itself (killing another application's process is outside this division's scope) — worth a clear failure message pointing at the real cause instead of a bare timeout.
+
+**Scope for v1 (Can):**
+- Two tools only: `nmap` (port/listening-service inventory of this machine) and `clamscan` (file-level scan of the Windows filesystem via `/mnt/c/`), both run inside the existing Kali WSL2 distro.
+- Detect and propose only — a Telegram alert plus an `audit_vault` row, matching Dependency Remediation's exact pattern. Cooperates with Audit (Huda) the same way: this pillar covers open ports and file-level malware, gaps Audit's own `security_audit.py` does not currently check, rather than duplicating Audit's existing secret-scanning/CVE work.
+
+**Explicitly out of scope for v1 (Cannot), to be revisited only with Mohamed:**
+- `lynis`, `rkhunter`, `chkrootkit`, or any other tool that would only audit the Kali WSL2 environment itself rather than the real Windows host.
+- Network-wide scanning (any host/subnet beyond this machine) — deferred as a separate, later decision.
+- Auto-remediation of any kind: no auto-quarantine or deletion of a file `clamscan` flags, no auto-closing a port `nmap` finds open. Findings are proposals only, exactly like Dependency Remediation.
+- Installing `nmap`/`clamav` into the Kali distro, or any other environment change, without Mohamed reviewing and running it himself — same as Database Governance Rule 2's migration-running boundary.
+- Killing or managing VMware processes as part of a scan run — a scan should fail with a clear message pointing at the conflict, not attempt to resolve it.
+
+**Escalation:** any change beyond the "Can" list follows the Escalation Chain above. Not yet built — this section satisfies Rule 10's "scoped before built" requirement; the actual agent (proposed name: `agents/systems/host_security_scan.py`) is future work.
+
 ## Current implementation status (v0.1, 2026-08-06; Workflow Builder + Database Governance added 2026-08-10; Dependency Vulnerability Remediation added 2026-08-11)
 
 **RLS+JWT least-privilege access, extended per Database Governance's Rule 4 — run against production and live-verified 2026-08-11.** Fixera, Forex, Personal & Education, Learning, and RII now use `shared/scoped_db.py`'s `get_scoped_client(app_role)` (extracted from `shared/systems_db_connector.py`, which had zero Systems-specific logic in its own client-minting code) with a `<division>_agent` JWT claim, matching Systems' own pattern — scoped to exactly what each division's code actually does, confirmed by a real audit of every `.table()` call across all 6 divisions rather than guessed (`infrastructure/database/migrations/0014_five_divisions_rls_jwt.sql`). **Working, proven with real positive and negative access tests against production:** each division's own division-exclusive tables (`personal_habits`, `learning_cards`, `rii_watchtowers`, etc.) — a scoped client reads/writes its own rows and genuinely cannot touch another division's, confirmed against real non-empty tables.
