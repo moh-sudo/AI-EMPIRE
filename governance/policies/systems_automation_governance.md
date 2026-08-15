@@ -97,6 +97,26 @@ Per the vision document's Section 4 ("never silently choose between documentatio
 
 **Escalation:** any change beyond the "Can" list follows the Escalation Chain above. Not yet built at time of scoping — the actual agent (proposed name: `agents/systems/architecture_assurance.py`) is the next step.
 
+## CI Health Monitoring Pillar (Software Development — scoped 2026-08-15)
+
+Software Development's first pillar and, as of the same day, the first real slice of a much larger vision Mohamed wrote (39 sections — requirements engineering, an architecture gate, autonomous bug-fixing, security/dependency/license governance, client isolation, change control, database safety, release management, rollback/DR, cost governance, AI-specific development governance, and eventually a client software factory). Full vision preserved verbatim at `governance/policies/software_development_vision.md`, including an explicit overlap check against what already exists elsewhere in AI_EMPIRE (QA, dependency scanning, secrets scanning, Database Governance, Bug Detection) so those sections get reused rather than rebuilt, and two flagged dangling references (a "Hybrid AI Platform & Routing Standard" that doesn't exist, and a "Compliance" function referenced as active when it isn't one of AI_EMPIRE's six real divisions).
+
+Scoped narrowly after checking what already exists to avoid overlap: Audit's Bug Detection (`agents/audit/bug_detection.py`) covers *runtime* agent failures from `memory_experience`, not the codebase's own CI pipeline — a real, completely unmonitored gap confirmed by reading `.github/workflows/ci.yml`: it runs ruff/format/secret-scan/pytest on every push, but nothing alerts anyone if it goes red. Mohamed would only find out by checking GitHub manually.
+
+**v0.1 scope — GitHub Actions health on `master` only:**
+- Fetches the latest run on `master` via GitHub's REST API directly (`requests`, not the `gh` CLI — the CLI's auth is tied to Mohamed's interactive login, unreliable for an unattended scheduled sweep). Repo: `moh-sudo/AI-EMPIRE`.
+- Compares the run's `conclusion` against the last known state, sourced from `audit_vault`'s own most recent `ci_health_check` row — no new database table, same trick Host Security Scanning uses.
+- Alerts via Telegram only on an actual **state change** (CI just broke, or CI just recovered) — never repeats the same alert for a run that's still broken, matching Reliability & Monitoring's Rule 5/6 precedent (log state changes, not every poll). On a failure, fetches the run's jobs to name the specific step that broke (ruff / format / secret scan / pytest), not just "CI failed."
+- Pure observability — there is no "propose vs. auto-apply" axis here, unlike every other agent in this division: nothing about a broken CI run is fixable by this agent, so it only ever detects and reports.
+
+**New credential required, set up by Mohamed, never by Claude:** a GitHub fine-grained Personal Access Token (`Actions: Read-only` + `Contents: Read-only` on `moh-sudo/AI-EMPIRE`) as `GITHUB_TOKEN` in `.env` — same boundary as every other credential in this project.
+
+**Authority:**
+- Can: read GitHub Actions run/job data via the REST API (read-only token), read/write `audit_vault` for its own state tracking, alert via Telegram on a state change.
+- Cannot: trigger, cancel, re-run, or approve a CI run; modify `.github/workflows/ci.yml` or any workflow file; take any corrective action on a failure — detect and alert only.
+
+**Escalation:** any change beyond the "Can" list follows the Escalation Chain above. Not yet built at time of scoping — the actual agent (proposed name: `agents/systems/ci_health_monitor.py`) is the next step.
+
 ## Current implementation status (v0.1, 2026-08-06; Workflow Builder + Database Governance added 2026-08-10; Dependency Vulnerability Remediation added 2026-08-11)
 
 **RLS+JWT least-privilege access, extended per Database Governance's Rule 4 — run against production and live-verified 2026-08-11.** Fixera, Forex, Personal & Education, Learning, and RII now use `shared/scoped_db.py`'s `get_scoped_client(app_role)` (extracted from `shared/systems_db_connector.py`, which had zero Systems-specific logic in its own client-minting code) with a `<division>_agent` JWT claim, matching Systems' own pattern — scoped to exactly what each division's code actually does, confirmed by a real audit of every `.table()` call across all 6 divisions rather than guessed (`infrastructure/database/migrations/0014_five_divisions_rls_jwt.sql`). **Working, proven with real positive and negative access tests against production:** each division's own division-exclusive tables (`personal_habits`, `learning_cards`, `rii_watchtowers`, etc.) — a scoped client reads/writes its own rows and genuinely cannot touch another division's, confirmed against real non-empty tables.
