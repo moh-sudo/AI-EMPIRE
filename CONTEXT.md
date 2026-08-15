@@ -1392,6 +1392,16 @@ Mohamed added `GITHUB_TOKEN` (fine-grained PAT, Actions + Contents read-only on 
 
 ---
 
+### 2026-08-15 (same day, continued) -- CI Health Monitoring wired into a scheduled sweep
+
+Followed this codebase's established n8n pattern exactly (`scheduleTrigger` -> `httpRequest`, matching `systems-health-check-scheduled.json`): added a `/ci-health-check` POST endpoint to `agents/systems/server.py`, and wrote `infrastructure/n8n/systems-ci-health-check-scheduled.json` (`active: false` -- Mohamed still imports and publishes it himself in n8n, same boundary every other workflow already respects).
+
+**Cadence chosen by precedent, not asked about:** every 5 minutes, matching Reliability & Monitoring's own interval rather than Host Security Scanning's daily one -- a GitHub API poll is cheap, unlike `nmap`/`clamscan`, so the same "cheap health check" cadence class applies directly; no real ambiguity to scope with Mohamed here.
+
+**Live-verified over real HTTP, not just written and assumed correct:** the running systems server was on the old code (uvicorn wasn't started with `--reload`), so a real restart was needed to pick up the new route -- confirmed via the log showing a fresh `Started server process` line and an already-arriving real `/check-telegram` poll from n8n's existing active workflow, proving the restart didn't disrupt anything else. `curl -X POST http://127.0.0.1:8007/ci-health-check` returned `{"ok":true,"state_changed":false,"conclusion":"success"}` -- correctly matching the baseline established earlier the same day. 103 tests still passing, `ruff` clean.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles

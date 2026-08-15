@@ -10,6 +10,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 
+from agents.systems.ci_health_monitor import run_ci_health_sweep
 from agents.systems.host_security_scan import run_host_security_sweep
 from agents.systems.reliability_monitor import run_health_check_sweep
 from agents.systems.telegram_listener import check_for_systems_requests
@@ -39,3 +40,12 @@ def host_security_scan():
     rather than guess a timeout long enough to cover an unknown real
     duration."""
     return run_host_security_sweep()
+
+
+@app.post("/ci-health-check")
+def ci_health_check():
+    """5-minute scheduled trigger (infrastructure/n8n/systems-ci-health-check-scheduled.json),
+    matching Reliability & Monitoring's own cadence -- a lightweight
+    GitHub API poll, not a heavy scan like host-security-scan, so the
+    same "cheap health check" interval applies."""
+    return run_ci_health_sweep()
