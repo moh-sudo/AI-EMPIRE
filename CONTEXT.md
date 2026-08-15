@@ -1346,6 +1346,8 @@ Mohamed imported and (he believed) activated `systems-host-security-scan-schedul
 
 **Final state, live-verified end to end via a real login-trigger cycle after all fixes:** n8n and the systems server both come up correctly, `systems-host-security-scan-scheduled` is now in n8n's own "Activated workflow" list on restart (`ID: 3GTNBqdh1l54Uyys`) alongside all 16 other workflows, and a manual test execution produced a real `audit_vault` row (`id: 94904df1-832c-4efb-884c-d9f23a5a727a`, clean scan). The real, unattended first fire is tomorrow at 06:00 EAT -- queued to check `audit_vault` after that time for a non-manual confirmation.
 
+**PENDING NEXT SESSION:** check `audit_vault` for a `host_security_scan` row with `created_at` shortly after 2026-08-16 06:00 EAT (03:00 UTC) -- confirms the schedule fired on its own, not just via manual test. Also re-verify n8n (5678) and the systems server (8007) were actually running at that time (both depend on Mohamed having logged into Windows since the last restart -- autostart isn't guaranteed if the machine was off). A cloud routine was deliberately NOT set up for this check: it would need real Supabase service-role credentials shipped into a cloud environment, and couldn't verify local process/port state on this machine at all -- this has to be checked live, in a real session with Bash access to this machine, same as everything else this session.
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
