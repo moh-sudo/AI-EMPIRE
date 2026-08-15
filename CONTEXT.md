@@ -1336,6 +1336,18 @@ Mohamed then asked Claude to start the Systems & Automation server so the endpoi
 
 ---
 
+### 2026-08-15 -- Host Security Scanning workflow actually published; a real autostart race condition found and fixed
+
+Mohamed imported and (he believed) activated `systems-host-security-scan-scheduled` on 2026-08-13, but n8n's own startup log on a later restart proved it hadn't actually persisted as active -- of 17 total workflows, all 16 pre-existing ones reactivated on login, this one didn't. Root cause was simply that this n8n version's activation flow is "Publish" (with its own settings dialog), not a simple toggle, and the earlier attempt hadn't gone through that flow.
+
+**A real, separate bug surfaced along the way, independent of the publish issue:** this morning's login (08:39) crashed n8n with `MODULE_NOT_FOUND` on the exact same `node.exe .../n8n/bin/n8n` path that had worked correctly in every prior test. Running the identical command by hand minutes later worked immediately, and the file was confirmed present the whole time -- a genuine race condition where the Startup-folder script fires before the login environment/filesystem is fully settled, not a real path or install problem. Hardened `autostart_n8n_and_systems.ps1`: a 15s delay before anything starts, plus one bounded retry specifically for n8n if the exact `MODULE_NOT_FOUND` signature appears in its error log within 5s of launch (matching this division's existing "one remediation attempt per incident" precedent). Verified the fix doesn't false-trigger on a clean run (empty error log after a full successful stop/restart cycle) rather than just assuming it was safe.
+
+**Also caught and fixed a real config gap while publishing:** the workflow's timezone defaulted to `America/New York`; left as-is, the "Daily 06:00" trigger would have fired at 6am Eastern, not 6am Mohamed's actual time (EAT, confirmed via the ClamAV service's own timestamp earlier this session). Changed to `Africa/Nairobi` before publishing.
+
+**Final state, live-verified end to end via a real login-trigger cycle after all fixes:** n8n and the systems server both come up correctly, `systems-host-security-scan-scheduled` is now in n8n's own "Activated workflow" list on restart (`ID: 3GTNBqdh1l54Uyys`) alongside all 16 other workflows, and a manual test execution produced a real `audit_vault` row (`id: 94904df1-832c-4efb-884c-d9f23a5a727a`, clean scan). The real, unattended first fire is tomorrow at 06:00 EAT -- queued to check `audit_vault` after that time for a non-manual confirmation.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
