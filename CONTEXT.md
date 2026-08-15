@@ -1382,6 +1382,16 @@ Mid-way through scoping Software Development as the last untouched pillar, Moham
 
 ---
 
+### 2026-08-15 (same day, continued) -- CI Health Monitoring live-verified end to end
+
+Mohamed added `GITHUB_TOKEN` (fine-grained PAT, Actions + Contents read-only on `moh-sudo/AI-EMPIRE`) -- walked through GitHub's settings UI live since "Developer settings" turned out to be the very last item at the bottom of the whole Settings sidebar, easy to miss. Confirmed the exact 3-permission set (Actions, Contents, both Read-only, plus GitHub's own required read-only Metadata baseline) before he generated it.
+
+**Live-verified the real API calls immediately after:** `fetch_latest_master_run()` correctly parsed the actual latest run on `master` against production GitHub -- matched exactly the run already confirmed real via `gh run list` earlier. First-ever `run_ci_health_sweep()` correctly established a silent baseline (no Telegram alert, since there's nothing yet to compare against) and wrote a real `audit_vault` row (`id: b10a303c-2f17-4228-9fe4-0b54f22d41bf`).
+
+**Then verified the actual state-change/alert path for real, without needing to break CI on purpose:** patched only `_get_last_known_conclusion()` to return `"failure"` (simulating a prior state), leaving `fetch_latest_master_run()`, `fetch_failed_steps()`, `send_telegram()`, and `write_audit_vault()` all real -- the real, current `"success"` conclusion then correctly diverged from the simulated prior state and fired a genuine recovery alert through the real Telegram bot (confirmed received) and a second real `audit_vault` row (`id: daac6ed7-ab2c-4b2b-a007-cd8c80950996`). Full pipeline proven end to end with real GitHub data, real Telegram delivery, and real database writes -- not just the 13 passing mocked tests.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
