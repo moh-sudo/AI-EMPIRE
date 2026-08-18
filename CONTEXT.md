@@ -1488,6 +1488,18 @@ Standing gap list was fully cleared, so moved to a new area per Mohamed's choice
 
 ---
 
+### 2026-08-18 (same day, continued) -- The other 5 division servers had the exact same problem, plus Ollama
+
+Mohamed asked to check the other division servers rather than leave the question open. Queried `circuit_breakers` for every service instead of one at a time: `audit_server`, `fixera_server`, `learning_server`, `personal_server`, and `rii_server` were **all** in `fallback` state, `last_success_at` clustered within 4 seconds of each other -- `2026-08-07T05:40:38` through `:42` UTC -- the same exact window as Forex before today's fix. One shared root event (the machine restart that day), not 6 unrelated incidents, so all 6 were fixed together rather than being rediscovered one at a time over the coming weeks.
+
+**Fixed immediately:** started all 5 (`uvicorn agents.{division}.server:app --port {port} --host 0.0.0.0`, same command shape as Forex/`restart_division_server()`), confirmed real `200` responses from each, then ran `reliability_monitor.py`'s real `run_health_check_sweep()` and confirmed all 5 flipped to `healthy` in `circuit_breakers`.
+
+**Structural fix:** replaced the single-service Forex block in `autostart_n8n_and_systems.ps1` with a `$divisionServers` array + loop covering all 6 division servers (8001-8006) in one pass. With 8 processes now starting at login instead of 3, bumped the host-security-scan login-trigger's pre-check delay 10s -> 20s pre-emptively, rather than waiting to hit the same race that hurt the 3-process version. **Live-verified with a full clean stop/retrigger cycle:** killed all 8 processes (n8n, systems server, 6 division servers), ran the script fresh, all 8 came back up, and the host-security-scan trigger succeeded on the first attempt (no retry needed this time). A second `run_health_check_sweep()` after the clean restart confirmed all 6 division servers + n8n + supabase back to `healthy`.
+
+**One real exception, not silently swept in:** `ollama` is *also* in `fallback` with a `last_success_at` in the same 2026-08-07 cluster -- but it runs on a separate Mac, not this laptop, and `systems_automation_governance.md`'s Rule 3 ("Out-of-Reach Services Are Detection-Only") already names Ollama as the one service this system can detect going down but must never attempt to remote-restart. Documented as a known gap needing Mohamed's manual attention on the Mac side; nothing added to the autostart script for it, on purpose.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
