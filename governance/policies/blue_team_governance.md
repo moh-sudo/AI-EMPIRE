@@ -94,13 +94,25 @@ around Audit, never auto-retried without review.
 
 ### Not yet built
 
-Proposed name: `agents/blue_team/finding_intake.py` — deliberately not committing to
-that path yet. Whether Blue Team code gets a new top-level `agents/blue_team/`
-directory (matching the vision diagram's division-less placement literally) or nests
-under Systems & Automation like every other agent built so far is still an open
-placement question, not resolved by this document — flagged again here since it also
-wasn't resolved when Red Team was scoped. Building this is the next real step once
-Mohamed chooses to move from "governance only" to implementation.
+**Placement resolved 2026-08-18:** `agents/systems/blue_team_finding_intake.py` —
+nested under Systems & Automation's existing structure rather than a new top-level
+`agents/blue_team/` directory. Reasoning: `agents/systems/server.py` already
+accumulates several unrelated-but-adjacent endpoints on one shared server/port/bot
+(`host_security_scan`, `ci_health_check`, `resource_check`) — nothing in this project
+gets dedicated infrastructure per capability. A new top-level directory would mean
+duplicating an entire division's worth of scaffolding (a new `server.py`, a new
+Telegram bot and token, a new port, a new `_memory_helpers.py`/`_telegram.py`) for one
+file. This matches the same governance-vs-code-location split already accepted for the
+five Part 1 agents: code lives wherever's operationally convenient (reusing the
+existing systems server on port 8007 and its Telegram bot), while this document stays
+the authoritative cross-cutting governance regardless of file path. The known tradeoff,
+accepted explicitly: the file path can read as "Blue Team = Systems & Automation" even
+though governance says otherwise — same tension already accepted for the five existing
+agents, just extended to new code too. Building this file is the next real step once
+Mohamed chooses to move from "governance only" to implementation. Red Team has no
+equivalent placement question yet — the RoE bars any autonomous Red Team agent, so
+there is no Red Team code to place until a future governance step separately
+authorizes one.
 
 ## Independence from Red Team
 

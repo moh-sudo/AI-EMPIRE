@@ -1546,6 +1546,16 @@ Mohamed chose to scope Blue Team next. First checked real current state rather t
 
 ---
 
+### 2026-08-18 (same day, continued) -- Placement question resolved: Blue Team code nests under agents/systems/, no new top-level directory
+
+Mohamed asked to resolve the open placement question next rather than leave it hanging. Checked `agents/systems/server.py` first rather than reasoning from the diagram alone: it already accumulates several unrelated-but-adjacent endpoints on one shared server/port/bot (`host_security_scan`, `ci_health_check`, `resource_check`) -- nothing in this project gets dedicated infrastructure per capability, despite each of those living under a different named pillar.
+
+**Real finding that simplified the question:** there's currently no Red Team code to place at all. The RoE explicitly bars any autonomous Red Team agent -- every exercise is manual and Claude-run, per conversation. So the only concrete placement decision on the table was Blue Team's `finding_intake.py`.
+
+**Decision: `agents/systems/blue_team_finding_intake.py`, nested under Systems & Automation's existing structure** -- reuses the existing server, port 8007, and Telegram bot rather than standing up a whole new top-level `agents/blue_team/` directory (which would mean a new `server.py`, a new bot/token, a new port, and new `_memory_helpers.py`/`_telegram.py` for one file). Matches the same governance-vs-code-location split already accepted for the 5 existing Part 1 agents: code lives wherever's operationally convenient, `blue_team_governance.md` stays the authoritative cross-cutting policy regardless of file path. Known, explicitly accepted tradeoff: the file path can read as "Blue Team = Systems & Automation" even though governance says it isn't owned by any division -- same tension already accepted for the 5 existing agents, just extended to new code. `blue_team_governance.md`'s Part 2 updated to record the resolved path and reasoning. Red Team's placement stays genuinely open, but moot, until a future governance step separately authorizes an actual agent to exist.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
