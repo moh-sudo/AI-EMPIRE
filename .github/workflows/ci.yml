@@ -16,20 +16,21 @@ jobs:
 
       # Deliberately NOT installing the full requirements.txt here --
       # it includes MetaTrader5, a Windows-only package that can't
-      # install on this Linux runner. requests, supabase, and pyjwt are
-      # the runtime dependencies the current test suite's import chain
-      # actually needs (supabase because tests/test_learning_engine.py
-      # patches "shared.db.get_client"/"shared.scoped_db.get_scoped_client"
-      # by string path, which requires shared/db.py and shared/scoped_db.py
+      # install on this Linux runner. requests, supabase, pyjwt, and
+      # psutil are the runtime dependencies the current test suite's
+      # import chain actually needs (supabase because
+      # tests/test_learning_engine.py patches
+      # "shared.db.get_client"/"shared.scoped_db.get_scoped_client" by
+      # string path, which requires shared/db.py and shared/scoped_db.py
       # -- and their top-level `from supabase import ...` -- to actually
       # import; pyjwt because shared/scoped_db.py also does `import jwt`
-      # at module level. Found live 2026-08-10 when this exact class of
-      # gap made CI fail despite passing locally, where the full
-      # requirements.txt is installed -- fixed once for supabase, hit
-      # again the same day for pyjwt once scoped_db.py was added). Add
-      # more here only as real tests grow to need them.
+      # at module level; psutil because agents/systems/resource_monitor.py
+      # imports it at module level, found live 2026-08-18 the same way
+      # supabase/pyjwt were found 2026-08-10 -- passed locally, failed in
+      # CI's minimal environment). Add more here only as real tests grow
+      # to need them.
       - name: Install dev tooling
-        run: pip install -r requirements-dev.txt requests supabase pyjwt
+        run: pip install -r requirements-dev.txt requests supabase pyjwt psutil
 
       - name: ruff check
         run: ruff check .
