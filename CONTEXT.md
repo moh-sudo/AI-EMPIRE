@@ -1568,6 +1568,18 @@ Mohamed asked to build it. Implemented exactly what `blue_team_governance.md`'s 
 
 ---
 
+### 2026-08-18 (same day, continued) -- First real Red Team exercise run under the RoE: RLS boundary held
+
+Mohamed asked to run a first exercise. Followed `red_team_rules_of_engagement.md`'s own approval process exactly rather than just proceeding -- proposed a specific target (`systems_agent` scoped client attempting `SELECT` on `personal_habits`, a Personal & Education table), the technique (scoped-role boundary testing, from the RoE's own Permitted list), a timeframe (immediate, single read, this conversation only), and a stop condition, then waited for Mohamed's explicit go-ahead before running anything -- no standing authorization assumed from earlier in the session.
+
+**Real result needed a second step to interpret honestly.** The scoped read "succeeded" but returned 0 rows -- ambiguous on its own, since that's indistinguishable from an empty table. Checked ground truth via the legitimate service-role client (same table, not a new target, just establishing what was actually measured): `personal_habits` has 1 real row ("Drink water"). The `systems_agent` scoped client couldn't see it. **Clean pass** -- RLS genuinely enforced least privilege at the database layer, not just in application code.
+
+**Logged per the RoE's own evidence rule ("every exercise, successful or not, gets a real record"):** a real `audit_vault` row (`red_team_exercise_completed`, `outcome: no_vulnerability_found`, full evidence fields -- exercise ID, target, technique, observed behavior, evidence, reproduction conditions, authorization reference) and a real Telegram message to Mohamed, confirmed delivered (`sent: True`).
+
+**One honest gap surfaced, not fixed today:** `blue_team_finding_intake.py`'s `receive_finding()` requires a severity (Critical/High/Medium/Low) and is built specifically for actual vulnerability findings -- a clean-pass exercise like this one doesn't fit that schema, so it was logged directly via `write_audit_vault()` instead of forced through the findings pipeline. Worth a future governance note if more clean-pass exercises pile up and a dedicated "exercise log, no finding" path becomes worth building -- not scoped or built today, flagged honestly rather than silently worked around.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
