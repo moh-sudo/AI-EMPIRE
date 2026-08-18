@@ -14,15 +14,17 @@ RoE, per Mohamed's explicit choice to formally adopt the existing scattered defe
 agents under a Blue Team identity *and* scope the one genuinely missing capability
 (Part 2) in the same pass, while leaving ownership of the existing agents with their
 current divisions rather than transferring it.
-**Status:** Part 1 is real today — five agents, live, tested, already running. Part 2
-is governance only, per Rule 10 ("new capability scoped before built") — nothing in
-Part 2 exists yet.
+**Status:** Part 1 is real today — five agents, live, tested, already running. Part 2's
+finding-intake capability is now real too, built 2026-08-18 at
+`agents/systems/blue_team_finding_intake.py` (12 tests, live-verified with a real
+`audit_vault` write and a real, confirmed-delivered Telegram alert) — see Part 2 below
+for exactly what it does and does not do.
 
 ## Mission
 
 Detect, prevent, contain, and recover from security incidents affecting AI_EMPIRE —
-including, once Part 2 is built, receiving and remediating findings from Red Team
-exercises run under `red_team_rules_of_engagement.md`. Blue Team never verifies its own
+including receiving and proposing remediations for findings from Red Team exercises
+run under `red_team_rules_of_engagement.md`. Blue Team never verifies its own
 remediation; Audit does that independently, same separation of duties the Red Team RoE
 already establishes for attack findings.
 
@@ -47,15 +49,31 @@ in `systems_automation_governance.md` and `security_audit_policy.md`. This secti
 cross-cutting index — Blue Team's governance *references* them so the vision document's
 Red/Blue/Audit structure has something real to point to — not a transfer of authority.
 
-## Part 2 — New capability: Red Team finding intake & remediation (scoped, not built)
+## Part 2 — Red Team finding intake & remediation (built 2026-08-18)
 
-This is the literal gap found while scoping the Red Team RoE: none of the five agents
-above, nor anything else in the codebase, can receive a Red Team finding and act on it.
-The RoE's own pipeline (`RED → Finding → Risk Assessment → BLUE → QA/Security
-Verification → AUDIT`) needs this step to actually function end to end. Scoped here
-per Rule 10, before any code exists.
+This was the literal gap found while scoping the Red Team RoE: none of the five agents
+above, nor anything else in the codebase, could receive a Red Team finding and act on
+it. The RoE's own pipeline (`RED → Finding → Risk Assessment → BLUE → QA/Security
+Verification → AUDIT`) needed this step to actually function end to end. Scoped here
+per Rule 10 before any code existed, then built the same session.
 
-### Can (once built)
+**Real, live-verified 2026-08-18:** `agents/systems/blue_team_finding_intake.py`
+implements exactly the Can/Cannot list below, no more — `validate_finding()` fails
+closed on any missing required field or unrecognized severity (matching the RoE's
+evidence and severity schema field-for-field); `receive_finding()` logs the finding to
+`audit_vault` unmodified and alerts Mohamed via Telegram; `propose_remediation()`
+packages a human-authored fix proposal (never generates one itself), logs it, and
+alerts — its `status` field is always `"proposed"`, since the module has no code path
+that ever sets `"applied"` or `"verified"`. The Cannot list is enforced by omission:
+there is no `apply_fix()`, `mark_verified()`, or `run_test()` function anywhere in the
+file — a test (`test_proposal_status_is_never_applied_or_verified`) asserts those
+functions don't exist, not just that current behavior looks right. 12 tests passing,
+re-verified in a fresh CI-simulation venv before push, and live-verified against real
+infrastructure with a clearly-labeled synthetic test finding: two real `audit_vault`
+rows written and confirmed by direct query, and a real Telegram message confirmed
+delivered (`sent: True`) to the Systems bot.
+
+### Can
 
 - Receive a classified finding (Critical/High/Medium/Low, per
   `red_team_rules_of_engagement.md`'s severity scale) addressed to Mohamed and Audit.
@@ -92,26 +110,29 @@ Same Escalation Chain as everything else in this project:
 independent verification rejects goes back to Blue Team for revision — never silently
 around Audit, never auto-retried without review.
 
-### Not yet built
+### Placement and status
 
-**Placement resolved 2026-08-18:** `agents/systems/blue_team_finding_intake.py` —
-nested under Systems & Automation's existing structure rather than a new top-level
-`agents/blue_team/` directory. Reasoning: `agents/systems/server.py` already
-accumulates several unrelated-but-adjacent endpoints on one shared server/port/bot
-(`host_security_scan`, `ci_health_check`, `resource_check`) — nothing in this project
-gets dedicated infrastructure per capability. A new top-level directory would mean
-duplicating an entire division's worth of scaffolding (a new `server.py`, a new
-Telegram bot and token, a new port, a new `_memory_helpers.py`/`_telegram.py`) for one
-file. This matches the same governance-vs-code-location split already accepted for the
-five Part 1 agents: code lives wherever's operationally convenient (reusing the
-existing systems server on port 8007 and its Telegram bot), while this document stays
-the authoritative cross-cutting governance regardless of file path. The known tradeoff,
-accepted explicitly: the file path can read as "Blue Team = Systems & Automation" even
-though governance says otherwise — same tension already accepted for the five existing
-agents, just extended to new code too. Building this file is the next real step once
-Mohamed chooses to move from "governance only" to implementation. Red Team has no
-equivalent placement question yet — the RoE bars any autonomous Red Team agent, so
-there is no Red Team code to place until a future governance step separately
+**Placement resolved 2026-08-18, built the same day:** lives at
+`agents/systems/blue_team_finding_intake.py`, nested under Systems & Automation's
+existing structure rather than a new top-level `agents/blue_team/` directory.
+Reasoning: `agents/systems/server.py` already accumulates several
+unrelated-but-adjacent endpoints on one shared server/port/bot (`host_security_scan`,
+`ci_health_check`, `resource_check`) — nothing in this project gets dedicated
+infrastructure per capability. A new top-level directory would have meant duplicating
+an entire division's worth of scaffolding (a new `server.py`, a new Telegram bot and
+token, a new port, a new `_memory_helpers.py`/`_telegram.py`) for one file. This
+matches the same governance-vs-code-location split already accepted for the five Part 1
+agents: code lives wherever's operationally convenient (reusing the existing systems
+server on port 8007 and its Telegram bot), while this document stays the authoritative
+cross-cutting governance regardless of file path. The known tradeoff, accepted
+explicitly: the file path can read as "Blue Team = Systems & Automation" even though
+governance says otherwise — same tension already accepted for the five existing
+agents, just extended to new code too. Not wired into `server.py` as an HTTP endpoint —
+there is no automated trigger source for it yet (Red Team exercises are manual and
+conversation-driven per the RoE, not n8n-scheduled), so an unused endpoint would be
+scope beyond what's actually needed; called directly as a Python function for now.
+Red Team has no equivalent placement question — the RoE bars any autonomous Red Team
+agent, so there is no Red Team code to place until a future governance step separately
 authorizes one.
 
 ## Independence from Red Team

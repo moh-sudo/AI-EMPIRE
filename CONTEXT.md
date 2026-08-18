@@ -1556,6 +1556,18 @@ Mohamed asked to resolve the open placement question next rather than leave it h
 
 ---
 
+### 2026-08-18 (same day, continued) -- Blue Team's finding_intake.py built, tested, and live-verified
+
+Mohamed asked to build it. Implemented exactly what `blue_team_governance.md`'s Part 2 scoped, no more: `validate_finding()` (pure, fails closed on any missing required field or unrecognized severity, matching the RoE's evidence/severity schema field-for-field), `receive_finding()` (logs the finding to `audit_vault` unmodified, alerts Mohamed via Telegram), and `propose_remediation()` (packages a human-authored fix -- never generates one itself -- with `status` permanently `"proposed"`). The Cannot list (no auto-apply, no self-verification, no self-initiated retesting) is enforced by omission: there is simply no `apply_fix()`, `mark_verified()`, or `run_test()` function in the file. One test (`test_proposal_status_is_never_applied_or_verified`) asserts those functions don't exist on the module, not just that current behavior looks right -- a structural guarantee rather than a behavioral one.
+
+**12 tests passing**, mirroring `test_resource_monitor.py`'s mocking style (patch `write_audit_vault` and `send_telegram`, assert on `call_args`). Re-ran in a fresh CI-simulation venv (`requirements-dev.txt requests supabase pyjwt psutil`, matching CI's exact minimal install) before pushing, per this session's own established discipline -- passed clean.
+
+**Live-verified against real infrastructure, not just mocks:** ran `receive_finding()` and `propose_remediation()` with a clearly-labeled synthetic test finding (`exercise_id: test-intake-verification-2026-08-18`, explicitly marked as a dry run, not a real Red Team exercise). Confirmed two real `audit_vault` rows by direct query (`red_team_finding_received`, `blue_team_remediation_proposed`) and confirmed the real Telegram alert actually delivered (`sent: True`, real `message_id` back from the Bot API) rather than just trusting the fail-safe `except: pass` didn't hide a silent failure.
+
+**Deliberately not wired into `server.py`.** No automated trigger exists that would ever call this -- Red Team exercises are manual and Claude-run per the RoE, not n8n-scheduled -- so adding an HTTP endpoint now would be scope beyond what's actually needed. Called directly as a Python function until (if ever) a real caller exists. `blue_team_governance.md` and `ARCHITECTURE.md` updated to reflect Part 2 is now real, not just scoped.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
