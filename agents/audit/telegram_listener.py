@@ -47,8 +47,10 @@ def _handle_status() -> str:
 
     security = run_security_audit()
     secret_count = len(security.get("secrets", {}).get("findings", []))
+    history_count = len(security.get("git_history_secrets", {}).get("findings", []))
     lines.append(
-        f"Security: {secret_count} potential hardcoded secret(s), .env tracked by git: {security.get('env_tracking', {}).get('env_tracked_by_git', 'unknown')}"
+        f"Security: {secret_count} potential hardcoded secret(s) (working tree), "
+        f"{history_count} in git history, .env tracked by git: {security.get('env_tracking', {}).get('env_tracked_by_git', 'unknown')}"
     )
 
     financial = run_financial_verification()

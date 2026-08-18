@@ -1458,6 +1458,20 @@ Picked the next item from the standing list: OS-level resource monitoring, flagg
 
 **Wired into a 5-minute scheduled sweep**, same cadence class as `ci_health_monitor.py` (cheap check, not a heavy scan): `/resource-check` endpoint added to `server.py`, `infrastructure/n8n/systems-resource-check-scheduled.json` written (`active: false`, pending Mohamed's import/publish). Live-verified over real HTTP after restarting the server to pick up the new route -- correctly reported the new server's own fresh PID.
 
+**Bonus real-world validation, unplanned:** the `psutil` import needed adding to `.github/workflows/ci.yml`'s deliberately minimal install set (same class of gap as `supabase`/`pyjwt` on 2026-08-10) -- missed at first, caught because CI genuinely went red on the real push. `ci_health_monitor.py`'s own scheduled sweep caught that real failure completely unattended within 5 minutes, alerted (confirmed received), then caught the recovery on the very next cycle after the fix -- a real end-to-end proof of the agent built two entries above this one, on a genuine failure it wasn't staged for.
+
+---
+
+### 2026-08-18 (same day, continued) -- Historical git-history secret re-scan (built under Audit, not Systems)
+
+Last item from the standing gap list (flagged 2026-08-11). Before building, checked whether this actually needed a new Systems & Automation agent the way everything else this session did -- it didn't. Audit's `security_audit.py` already has `scan_for_hardcoded_secrets()` (same 5 patterns) scanning the live working tree; a git-history version is the same detection domain, and unlike Dependency Remediation there's no "propose a fix" layer to add (the real fix for an exposed secret is rotating it, a human action, not something for an agent to build a proposal flow around). Proposed adding it directly to Audit's own module instead of a new Systems agent -- Mohamed agreed.
+
+**`scan_git_history_for_secrets()`** reuses the exact same `_SECRET_PATTERNS` (not duplicated), runs `git log -p --no-color` (90 commits, no `--all` since there's only one branch), and scans only added lines (`+`, not `+++` headers) -- a `-` line just shows something already covered by whichever commit originally introduced it. Folded into `run_security_audit()`'s existing try/except sweep as a 4th check; `telegram_listener.py`'s on-demand `/status` handler updated to surface the count alongside the existing working-tree secret count.
+
+**A real bug found live, not by the unit tests:** the first real run against actual git history crashed with a `UnicodeDecodeError` deep inside `subprocess`'s internal reader thread -- Windows defaulted to `cp1252` for decoding `git log`'s output, and something in 90 real commits wasn't valid `cp1252`. Fixed by passing `encoding="utf-8", errors="replace"` explicitly rather than relying on the platform default. Confirmed fixed: real scan against this repo's actual history completes in ~3 seconds, 0 findings (genuinely clean -- the two exposed-secret incidents found earlier this session were in Supabase's `memory_knowledge`, not git, so this result is consistent with what's already known, not a false negative).
+
+**7 new tests** (added-vs-removed-line handling, `.env` exclusion, multi-commit tracking, fail-closed on a subprocess error, integration into `run_security_audit()` with failure isolation), full suite 125 green, verified clean in the CI-simulation venv too (stdlib-only, no new dependency, but checked anyway given the `psutil` gap found minutes earlier the same day).
+
 ---
 
 ## Operational Efficiency Standard (v1.0)

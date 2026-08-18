@@ -52,6 +52,61 @@ def scan_for_hardcoded_secrets() -> dict:
     return {"ok": True, "findings": findings}
 
 
+def scan_git_history_for_secrets() -> dict:
+    """Same patterns as scan_for_hardcoded_secrets(), applied to the
+    full commit history via 'git log -p' instead of just the current
+    working tree -- catches a secret that was later removed from the
+    live code but still sits, retrievable, in an old commit (this is
+    a real, common way secrets leak even after being "fixed": a
+    working-tree scan looks clean, but `git log -p` or a clone still
+    has it). Flagged as a real gap 2026-08-11, scoped and built
+    2026-08-18. 90 commits in this repo as of scoping -- small enough
+    that 'git log -p' runs in well under the timeout; --all wasn't
+    used since this repo has no other branches to check.
+
+    Only scans ADDED lines ('+' in the diff) -- that's where a secret
+    would actually have been introduced; a '-' line just shows
+    something that already existed being removed, already covered by
+    whichever commit originally added it."""
+    try:
+        result = subprocess.run(
+            ["git", "log", "-p", "--no-color"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+        )
+    except (subprocess.SubprocessError, OSError, UnicodeDecodeError) as e:
+        return {"ok": False, "reason": str(e)}
+
+    findings = []
+    current_commit = None
+    current_file = None
+    for line in result.stdout.splitlines():
+        if line.startswith("commit "):
+            current_commit = line.split()[1]
+            continue
+        if line.startswith("+++ b/"):
+            current_file = line[len("+++ b/") :]
+            continue
+        if line.startswith("+++ /dev/null"):
+            current_file = None
+            continue
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        if current_file == ".env":
+            continue  # matches scan_for_hardcoded_secrets()'s own "never flags .env itself" rule
+
+        content = line[1:]
+        for pattern, label in _SECRET_PATTERNS:
+            for _match in pattern.finditer(content):
+                findings.append({"commit": current_commit, "file": current_file, "type": label})
+
+    return {"ok": True, "findings": findings}
+
+
 def check_env_not_tracked() -> dict:
     """Confirms .env is genuinely excluded from git, not just assumed
     via .gitignore's presence -- checks git's actual tracked-file list."""
@@ -112,7 +167,7 @@ def check_dependency_vulnerabilities() -> dict:
 
 
 def run_security_audit() -> dict:
-    """Live entry point -- runs all 3 real checks, isolated in their
+    """Live entry point -- runs all 4 real checks, isolated in their
     own try/except so one failing can't block the others."""
     results = {}
 
@@ -120,6 +175,11 @@ def run_security_audit() -> dict:
         results["secrets"] = scan_for_hardcoded_secrets()
     except Exception as e:
         results["secrets"] = {"ok": False, "reason": str(e)}
+
+    try:
+        results["git_history_secrets"] = scan_git_history_for_secrets()
+    except Exception as e:
+        results["git_history_secrets"] = {"ok": False, "reason": str(e)}
 
     try:
         results["env_tracking"] = check_env_not_tracked()
