@@ -137,6 +137,24 @@ Tools & Internal Systems' first build, and the last of Systems & Automation's se
 
 **Escalation:** any change beyond the "Can" list follows the Escalation Chain above. Not yet built at time of scoping — installing Juice Shop inside Kali is the next step.
 
+## Resource Monitoring Pillar (Security & Performance — scoped 2026-08-18)
+
+Security & Performance's third agent — the pillar's first to address the "Performance" half of its own name, rather than security. A real, long-flagged gap (first noted 2026-08-11 while scoping Dependency Remediation): Reliability & Monitoring only checks liveness (is the service responding), never resource pressure (is it quietly leaking memory or pegging CPU while still technically "healthy").
+
+**v0.1 scope — CPU/memory for n8n and the systems server, plus disk free space:**
+- Tracks n8n and the systems server specifically, found by port via the exact same `_find_pid_on_port` technique Reliability & Monitoring already uses (5678, 8007) — not every division server, keeping this to the two processes actually running continuously today.
+- Thresholds chosen from real current usage (checked live before picking numbers, not guessed): memory warning at 1GB for n8n (currently ~229MB) and 500MB for the systems server (currently ~37MB) — both roughly 15-25x current real usage, so only fires on genuine growth. CPU warning at 80% sustained (`psutil` reports this per-core, so the number is already hardware-normalized — doesn't need retuning on a hardware upgrade). Disk warning below 10GB free on `C:\` (currently 74.9GB free of 237.6GB) — a flat safety floor, deliberately not a percentage, since the last 10GB is dangerous regardless of total drive size.
+- Alerts only on a state change, reusing `ci_health_monitor.py`'s exact trick (compare against the last logged `audit_vault` row, no new table) — never repeats the same alert while still over-threshold, alerts again on recovery.
+- Detect only — nothing here kills or restarts a process for high resource use; that stays a human call, same as every other agent's default in this division.
+
+**New dependency:** `psutil` — a standard, well-known Python package (not an OS-level tool like `nmap`/`clamav`/Node.js), same category as `pip-audit`/`packaging` already added directly to `requirements.txt` this session. Claude installs this one; the "Mohamed installs, Claude doesn't" boundary is specifically about OS/WSL-level tools, not `pip` dependencies.
+
+**Authority:**
+- Can: read CPU/memory of the two named processes and disk free space via `psutil`, alert via Telegram on a state change, log to `audit_vault`.
+- Cannot: kill, restart, or otherwise act on a process for high resource use; change any threshold without it being a deliberate, documented code change.
+
+**Escalation:** any change beyond the "Can" list follows the Escalation Chain above. Not yet built at time of scoping — the actual agent (proposed name: `agents/systems/resource_monitor.py`) is the next step.
+
 ## Current implementation status (v0.1, 2026-08-06; Workflow Builder + Database Governance added 2026-08-10; Dependency Vulnerability Remediation added 2026-08-11)
 
 **RLS+JWT least-privilege access, extended per Database Governance's Rule 4 — run against production and live-verified 2026-08-11.** Fixera, Forex, Personal & Education, Learning, and RII now use `shared/scoped_db.py`'s `get_scoped_client(app_role)` (extracted from `shared/systems_db_connector.py`, which had zero Systems-specific logic in its own client-minting code) with a `<division>_agent` JWT claim, matching Systems' own pattern — scoped to exactly what each division's code actually does, confirmed by a real audit of every `.table()` call across all 6 divisions rather than guessed (`infrastructure/database/migrations/0014_five_divisions_rls_jwt.sql`). **Working, proven with real positive and negative access tests against production:** each division's own division-exclusive tables (`personal_habits`, `learning_cards`, `rii_watchtowers`, etc.) — a scoped client reads/writes its own rows and genuinely cannot touch another division's, confirmed against real non-empty tables.

@@ -1446,6 +1446,20 @@ This closes every open item from this session's Systems & Automation build-out -
 
 ---
 
+### 2026-08-18 (same day, continued) -- Resource Monitoring: Security & Performance's first "Performance" agent
+
+Picked the next item from the standing list: OS-level resource monitoring, flagged since 2026-08-11 as a real gap (Reliability & Monitoring only checks liveness, never resource pressure). Fits Security & Performance's own name better than any existing agent there -- both of that pillar's prior agents (Dependency Remediation, Host Security Scanning) are security-focused; nothing yet addressed the "Performance" half.
+
+**Checked real current usage before picking any threshold, rather than guessing:** `Get-Process`/`Get-PSDrive` showed n8n at ~229MB RAM, the systems server at ~37MB, and 74.9GB free of 237.6GB total on `C:\`. Mohamed asked a good clarifying question before the build -- would these numbers need retuning after a hardware upgrade -- answered honestly: mostly no, since memory thresholds are about catching software leaks (not hardware capacity), `psutil`'s CPU percentage is already per-core normalized, and the disk floor is a deliberate flat safety margin rather than a percentage that would shrink relative to a bigger drive.
+
+**`agents/systems/resource_monitor.py`** tracks n8n and the systems server specifically (by port, reusing `reliability_monitor.py`'s exact `_find_pid_on_port` technique, duplicated rather than imported per this codebase's convention) plus disk free space. Thresholds: memory warning 1GB n8n / 500MB systems server (~15-25x real usage at scope time), CPU warning 80%, disk warning below 10GB free. State-change-only alerting, reusing `ci_health_monitor.py`'s exact trick (compare against the last `audit_vault` row for this action, no new table) -- silently establishes a baseline on the first-ever check. New dependency `psutil` installed and added directly to `requirements.txt` -- a standard Python package, not an OS-level tool, so it didn't need the "Mohamed installs it himself" treatment.
+
+**15 new tests, all passing; full suite 118 green.** Live-verified for real, not just mocked: `check_process_resources()`/`check_disk_free()` matched exactly what the manual PowerShell check showed moments earlier (same real PIDs, close to the same memory numbers). A real first-ever sweep correctly established a silent baseline with a real `audit_vault` write. A simulated prior-state test (patching only `_get_last_known_states()`, leaving `psutil`, Telegram, and the DB write all real) triggered a genuine state-change alert -- confirmed received on Telegram, with a second real `audit_vault` row.
+
+**Wired into a 5-minute scheduled sweep**, same cadence class as `ci_health_monitor.py` (cheap check, not a heavy scan): `/resource-check` endpoint added to `server.py`, `infrastructure/n8n/systems-resource-check-scheduled.json` written (`active: false`, pending Mohamed's import/publish). Live-verified over real HTTP after restarting the server to pick up the new route -- correctly reported the new server's own fresh PID.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles

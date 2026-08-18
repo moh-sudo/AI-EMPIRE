@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from agents.systems.ci_health_monitor import run_ci_health_sweep
 from agents.systems.host_security_scan import run_host_security_sweep
 from agents.systems.reliability_monitor import run_health_check_sweep
+from agents.systems.resource_monitor import run_resource_check
 from agents.systems.telegram_listener import check_for_systems_requests
 
 app = FastAPI(title="Systems & Automation Division")
@@ -55,3 +56,11 @@ def ci_health_check():
     GitHub API poll, not a heavy scan like host-security-scan, so the
     same "cheap health check" interval applies."""
     return run_ci_health_sweep()
+
+
+@app.post("/resource-check")
+def resource_check():
+    """5-minute scheduled trigger (infrastructure/n8n/systems-resource-check-scheduled.json),
+    same cadence class as ci-health-check -- a few psutil calls plus
+    one disk_usage() call, cheap enough to run this often."""
+    return run_resource_check()
