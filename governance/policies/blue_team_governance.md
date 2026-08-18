@@ -1,0 +1,120 @@
+# Blue Team Governance (Defense & Security Operations)
+
+**Owner:** Independent Security Testing Function (Blue Team) — not owned by any single
+division, mirrors Red Team's own placement in `red_blue_purple_team_vision.md` (Blue
+Team sits across the architecture, sibling to Audit and Red Team, not nested inside
+Systems & Automation or any other division). The existing agents referenced in Part 1
+below **keep their current division ownership** — this document coordinates them under
+a shared Blue Team identity, it does not re-org them.
+**Authority:** Subordinate to the Constitution, including Law 13 (Security by Design &
+Continuous Security Assurance) — same authority chain as
+`red_team_rules_of_engagement.md`.
+**Written by:** Mohamed + Claude, 2026-08-18, scoped the same session as the Red Team
+RoE, per Mohamed's explicit choice to formally adopt the existing scattered defensive
+agents under a Blue Team identity *and* scope the one genuinely missing capability
+(Part 2) in the same pass, while leaving ownership of the existing agents with their
+current divisions rather than transferring it.
+**Status:** Part 1 is real today — five agents, live, tested, already running. Part 2
+is governance only, per Rule 10 ("new capability scoped before built") — nothing in
+Part 2 exists yet.
+
+## Mission
+
+Detect, prevent, contain, and recover from security incidents affecting AI_EMPIRE —
+including, once Part 2 is built, receiving and remediating findings from Red Team
+exercises run under `red_team_rules_of_engagement.md`. Blue Team never verifies its own
+remediation; Audit does that independently, same separation of duties the Red Team RoE
+already establishes for attack findings.
+
+## Part 1 — Existing Blue Team capability (real today, referenced not owned)
+
+Checked against the real codebase before writing this (`ls agents/systems/*.py
+agents/audit/*.py`) rather than assumed. Five existing agents are, functionally, Blue
+Team work today — detection, hardening, or recovery — just built and governed one at a
+time under their own division's pillar, with no shared "Blue Team" identity until now:
+
+| Agent | Real owner (unchanged) | Blue Team category | What it actually does |
+|---|---|---|---|
+| `agents/systems/reliability_monitor.py` | Systems & Automation (Abdullahi) | Detection + Recovery | Circuit-breaker health checks (5-min sweep), safe auto-restart for stateless services only (n8n, division servers), one-remediation-attempt-per-incident (Rule 4), never restarts data-tier services (Rule 2) or out-of-reach services (Rule 3) |
+| `agents/systems/host_security_scan.py` | Systems & Automation (Abdullahi) | Detection | Open-port inventory (`nmap`) and file-level malware scan (`clamscan`) of the real host, via WSL2/Kali; detect-and-propose only |
+| `agents/systems/dependency_remediation.py` | Systems & Automation (Abdullahi) | Hardening / Patching | Reads Audit's own CVE findings, proposes specific upgrade versions via Telegram; never runs `pip install` itself |
+| `agents/systems/resource_monitor.py` | Systems & Automation (Abdullahi) | Detection | CPU/memory/disk pressure on n8n and the systems server; state-change-only alerting |
+| `agents/audit/security_audit.py` | Audit & Verification (Huda) | Secrets Protection + Detection | Hardcoded-secret scanning, `.env`-not-tracked check, git-history secret re-scan, dependency vulnerability scanning (`pip-audit`) |
+
+**Ownership note:** nothing about these agents' code, permissions, database access, or
+escalation path changes because of this document. They stay exactly as governed today
+in `systems_automation_governance.md` and `security_audit_policy.md`. This section is a
+cross-cutting index — Blue Team's governance *references* them so the vision document's
+Red/Blue/Audit structure has something real to point to — not a transfer of authority.
+
+## Part 2 — New capability: Red Team finding intake & remediation (scoped, not built)
+
+This is the literal gap found while scoping the Red Team RoE: none of the five agents
+above, nor anything else in the codebase, can receive a Red Team finding and act on it.
+The RoE's own pipeline (`RED → Finding → Risk Assessment → BLUE → QA/Security
+Verification → AUDIT`) needs this step to actually function end to end. Scoped here
+per Rule 10, before any code exists.
+
+### Can (once built)
+
+- Receive a classified finding (Critical/High/Medium/Low, per
+  `red_team_rules_of_engagement.md`'s severity scale) addressed to Mohamed and Audit.
+- Read the finding's full evidence record — exercise ID, target, technique, observed
+  behavior, evidence, impact, reproduction conditions, scope, tester, authorization
+  reference.
+- Propose a specific remediation (a code or config change), matching Dependency
+  Remediation's own "detect and propose, never auto-apply" pattern exactly.
+- Log every finding received and every remediation proposed to `audit_vault`, same
+  pattern every other agent in this project already uses.
+- Route the proposed remediation through the same Two-Agent Rule / risk-based approval
+  every Systems & Automation capability beyond "restart a known-safe process" already
+  requires (`systems_automation_governance.md` Rule 9) — nothing auto-applies.
+- Notify Mohamed via Telegram, same as every other agent.
+
+### Cannot
+
+- Auto-apply any remediation. Every fix requires Mohamed's explicit approval before
+  it's applied — matches `self_healing_governance.md`'s existing v0.1 status exactly.
+- Mark its own remediation as verified or complete. That's QA/Security Verification,
+  then Audit's independent verification, per the vision document's own pipeline —
+  Blue Team blessing its own fix would violate Law 13 Rule 10 (Security Is Never
+  Self-Approved) the same way it would for Red Team self-approving an exercise.
+- Modify or suppress the original Red Team finding record.
+- Initiate its own adversarial testing to "confirm" a vulnerability exists — that
+  stays Red Team's exclusive role per the vision document's Red/Blue separation.
+  Retesting a deployed fix is Red Team's job (per the RoE's remediation-retest clause),
+  not Blue Team's.
+
+### Escalation
+
+Same Escalation Chain as everything else in this project:
+**Abdullahi → Huda → Abdi → Mohamed.** A Blue Team remediation proposal that Huda's
+independent verification rejects goes back to Blue Team for revision — never silently
+around Audit, never auto-retried without review.
+
+### Not yet built
+
+Proposed name: `agents/blue_team/finding_intake.py` — deliberately not committing to
+that path yet. Whether Blue Team code gets a new top-level `agents/blue_team/`
+directory (matching the vision diagram's division-less placement literally) or nests
+under Systems & Automation like every other agent built so far is still an open
+placement question, not resolved by this document — flagged again here since it also
+wasn't resolved when Red Team was scoped. Building this is the next real step once
+Mohamed chooses to move from "governance only" to implementation.
+
+## Independence from Red Team
+
+Per the vision document's own principle: if Blue Team knows exactly when and how Red
+Team will test, defenses get built for the test rather than for genuine resilience.
+Applies even during Red Team's current manual, Claude-run phase — an approved Red Team
+exercise is never previewed to whichever existing Blue Team agent monitors the
+targeted area before or during the exercise.
+
+## What this document does not do
+
+- Does not transfer ownership of the five Part 1 agents away from Systems & Automation
+  or Audit & Verification — see the ownership note above.
+- Does not authorize building the Part 2 finding-intake capability — still Rule 10's
+  next step, pending Mohamed's go-ahead.
+- Does not define Purple Team, which remains vision-only per
+  `red_blue_purple_team_vision.md`.

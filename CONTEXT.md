@@ -1534,6 +1534,18 @@ Mohamed raised Red Team / Blue Team as a needed capability, explicitly wanting t
 
 ---
 
+### 2026-08-18 (same day, continued) -- Blue Team governance scoped: 5 existing agents formally adopted, one real gap identified and scoped (not built)
+
+Mohamed chose to scope Blue Team next. First checked real current state rather than assuming a blank slate (`ls agents/systems/*.py agents/audit/*.py`): five existing agents are already, functionally, Blue Team work -- `reliability_monitor.py` (detection + recovery), `host_security_scan.py` (detection), `dependency_remediation.py` (hardening/patching), `resource_monitor.py` (detection), all Systems & Automation (Abdullahi); `security_audit.py` (secrets protection + vulnerability detection), Audit & Verification (Huda). None had ever been labeled "Blue Team" -- they were just built one pillar at a time under their own division's governance.
+
+**Two real forks needed Mohamed's call before drafting anything**, asked directly rather than assumed: (1) should Blue Team governance adopt the existing 5 agents, scope the missing Red-Team-finding-intake capability, or both -- **both**, chosen; (2) if adopted, does ownership of those 5 agents actually transfer to a new Blue Team owner, or stay with Abdullahi/Huda and just get referenced -- **stays with the divisions**, chosen, avoiding a disruptive re-org of working, tested code and docs for what's fundamentally a relabeling/coordination exercise.
+
+**`governance/policies/blue_team_governance.md` written accordingly, in two parts.** Part 1 is a real, honest index of the 5 existing agents with their real (unchanged) owners -- explicitly states this changes nothing about their code, permissions, or escalation path. Part 2 scopes the one genuinely missing piece, found while scoping the Red Team RoE: nothing today can receive a Red Team finding and act on it, even though the RoE's own pipeline (`RED -> Finding -> Risk Assessment -> BLUE -> QA/Security Verification -> AUDIT`) needs that step to function. Scoped per Rule 10 (new capability governed before built) with a Can/Cannot list matching Dependency Remediation's existing "detect and propose, never auto-apply" pattern: can receive a classified finding and its full evidence record, propose a specific remediation, log everything to `audit_vault`; cannot auto-apply a fix, cannot mark its own remediation verified (that's QA/Security Verification then Audit, independently -- Law 13 Rule 10 applies to Blue Team self-approval exactly as it does to Red Team), cannot initiate its own adversarial testing to confirm a vulnerability (stays Red Team's exclusive role). Same Escalation Chain as everything else (Abdullahi -> Huda -> Abdi -> Mohamed).
+
+**Nothing in Part 2 is built.** Proposed name `agents/blue_team/finding_intake.py`, deliberately not committed to -- whether Blue Team code gets its own new top-level `agents/blue_team/` directory (matching the vision diagram's division-less placement literally) or nests under Systems & Automation like everything else is still an open placement question, unresolved when Red Team was scoped and still unresolved here. Building this is the next real step once Mohamed chooses to move from governance to implementation.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
