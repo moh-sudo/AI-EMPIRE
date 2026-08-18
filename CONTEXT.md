@@ -1500,6 +1500,20 @@ Mohamed asked to check the other division servers rather than leave the question
 
 ---
 
+### 2026-08-18 (same day, continued) -- Re-ran Architecture Assurance's drift scan: the old 6-file finding is gone, but the host-security-scan workflow was never actually turned off in n8n
+
+Mohamed picked the n8n workflow drift item to work on next (open since 2026-08-15: 6 workflows live in n8n with repo files still declaring `active: false`). Re-ran `detect_workflow_drift()` fresh rather than trusting a 3-day-old finding -- real current state had moved on:
+
+**The original 6-file finding is resolved.** None of the 6 (`audit-agent-daily`, both `fixera-ceo-briefing-*`, both `forex-ceo-briefing-*`, `systems-host-security-scan-scheduled`) still show up as drift -- their repo files now match n8n's live `active` state.
+
+**A different, real drift replaced it, and it corrects something written earlier today.** Earlier in the session, dropping `host-security-scan`'s daily n8n schedule in favor of a login trigger was logged as deleting the repo JSON and leaving "Mohamed removes the corresponding workflow from n8n itself" as his follow-up. Checking n8n's real `workflow_entity` table directly just now: `systems-host-security-scan-scheduled` is still `active: 1`, `isArchived: 0` -- that follow-up was never done. `execution_entity` shows no automatic `mode='trigger'` firing since 2026-08-15 (same unreliable-schedule behavior that motivated dropping it), so no duplicate scans have actually run -- but it's still a live, undocumented workflow sitting in n8n with nothing in the repo describing it.
+
+**Can't fix this from code.** Architecture Assurance's n8n access is deliberately read-only (`mode=ro` on the SQLite connection, verified live back on 2026-08-15 that a write attempt is rejected by SQLite itself), and deactivating a live workflow is a real n8n-state change the agent has no authority to make. Corrected the inaccurate claim in `ARCHITECTURE.md`; flagged to Mohamed that he still needs to manually deactivate or archive this one workflow in n8n's UI.
+
+**Also surfaced, expected and not a problem:** `systems-resource-check-scheduled` shows as "not imported" -- that's the Resource Monitoring workflow built 2026-08-18, still correctly waiting on Mohamed's own manual import, same pattern as every other scheduled workflow in this project.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
