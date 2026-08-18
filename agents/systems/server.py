@@ -30,15 +30,21 @@ def check_telegram():
 
 @app.post("/host-security-scan")
 def host_security_scan():
-    """Daily scheduled trigger (infrastructure/n8n/systems-host-security-scan-scheduled.json).
-    Port scan (nmap) only -- no malware_scan_path. A live test found
-    clamscan over the real Downloads folder via WSL2's /mnt/c/ bridge
-    doesn't finish within the 600s subprocess timeout (a known WSL2
-    slow-filesystem-bridge characteristic, not a bug); Mohamed's call
-    was to keep the daily schedule to the fast, proven-reliable port
-    scan and run clamscan on-demand for a specific path when wanted,
-    rather than guess a timeout long enough to cover an unknown real
-    duration."""
+    """Triggered once per login by infrastructure/scripts/autostart_n8n_and_systems.ps1
+    -- NOT an n8n schedule. Found live 2026-08-18 that the original
+    daily 06:00 EAT n8n trigger had never once fired automatically in
+    3 real days (confirmed via n8n's own execution_entity table: zero
+    mode='trigger' rows), because this laptop isn't reliably on and
+    logged in at that exact hour and n8n doesn't catch up on missed
+    schedules. Firing once per login is deterministic instead of
+    probabilistic. Port scan (nmap) only -- no malware_scan_path. A
+    live test found clamscan over the real Downloads folder via
+    WSL2's /mnt/c/ bridge doesn't finish within the 600s subprocess
+    timeout (a known WSL2 slow-filesystem-bridge characteristic, not
+    a bug); Mohamed's call was to keep this to the fast,
+    proven-reliable port scan and run clamscan on-demand for a
+    specific path when wanted, rather than guess a timeout long
+    enough to cover an unknown real duration."""
     return run_host_security_sweep()
 
 

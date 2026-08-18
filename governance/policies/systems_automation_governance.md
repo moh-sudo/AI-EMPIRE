@@ -78,6 +78,8 @@ Scoped per Rule 10, before any code is written, following the exact same discipl
 
 **Escalation:** any change beyond the "Can" list follows the Escalation Chain above. Not yet built — this section satisfies Rule 10's "scoped before built" requirement; the actual agent (proposed name: `agents/systems/host_security_scan.py`) is future work.
 
+**Scheduling update (2026-08-18):** the original plan to trigger this daily via an n8n schedule (06:00 EAT) was dropped after n8n's own `execution_entity` table showed it had never once fired automatically in 3 real days — this laptop isn't reliably on and logged in at that exact hour, and n8n doesn't catch up on missed schedules. Replaced with a login-triggered call from `infrastructure/scripts/autostart_n8n_and_systems.ps1` (runs once per real session instead of a fixed clock time) — no n8n workflow file for this agent anymore.
+
 ## Architecture & Platform Assurance Pillar (System Architecture — scoped 2026-08-15)
 
 Full vision (24 sections, Mohamed's own master prompt) preserved in full at `governance/policies/architecture_assurance_vision.md` — this section defines only what's actually scoped for v0.1, per Rule 10. Origin: scoping "System Architecture," the last untouched pillar alongside Software Development, Mohamed proposed a much larger continuous-learning architecture-assurance function; scoped down to one concrete, buildable slice rather than attempted whole, matching how every other pillar in this division has actually been built (Dependency Remediation, Host Security Scanning, Workflow Builder all started as one narrow real capability).
@@ -116,6 +118,24 @@ Scoped narrowly after checking what already exists to avoid overlap: Audit's Bug
 - Cannot: trigger, cancel, re-run, or approve a CI run; modify `.github/workflows/ci.yml` or any workflow file; take any corrective action on a failure — detect and alert only.
 
 **Escalation:** any change beyond the "Can" list follows the Escalation Chain above. Not yet built at time of scoping — the actual agent (proposed name: `agents/systems/ci_health_monitor.py`) is the next step.
+
+## Cybersecurity Practice Lab Pillar (Tools & Internal Systems — scoped 2026-08-15)
+
+Tools & Internal Systems' first build, and the last of Systems & Automation's seven pillars to get one. Rule 8 already governed this pillar before anything existed under it ("Any lab environment... must never have access to real AI_EMPIRE or Fixera credentials... lab tooling gets synthetic data and its own isolated config, full stop") — this section is the concrete v0.1 that rule now actually applies to.
+
+**Explicitly distinct from Host Security Scanning:** that pillar (Security & Performance) scans *this real machine* for real findings. This pillar is the opposite in kind — a deliberately, intentionally vulnerable practice target, entirely synthetic, for Mohamed to practice offensive-security technique on safely. Nothing here ever touches real AI_EMPIRE data.
+
+**v0.1 scope — OWASP Juice Shop, localhost only, inside the existing Kali WSL2 distro:**
+- Chosen over Docker after checking real constraints first: Docker isn't installed on this machine, and this laptop already has a documented history of virtualization conflicts (the VMware/Hyper-V clash found while scoping Host Security Scanning). Also checked whether the two existing WSL2 distros (Ubuntu, Kali) could serve as separate attacker/target machines on a network — live-confirmed they share the exact same IP under WSL2's default networking, ruling that out without real added complexity.
+- Runs as a plain Node.js process inside Kali, reachable at `localhost` — real trade-off, accepted explicitly: this gives up network-level reconnaissance practice (nmap against a "remote" target won't feel real) in exchange for zero new virtualization risk and zero new software categories on an already-fragile machine. The large majority of practice value (OWASP Top 10: SQLi, XSS, auth bypass, IDOR, etc.) works identically over localhost.
+- Self-contained by construction, not just by policy: Juice Shop needs no AI_EMPIRE credentials, no `.env` values, and no network access to any real AI_EMPIRE or Fixera service to run — the air-gap from Rule 8 holds by the nature of the software, not because an agent is careful not to cross it.
+- **Not started automatically, unlike n8n/the systems server.** Deliberately vulnerable software left running persistently is worse hygiene than starting it only when actually practicing — no autostart script, no scheduled sweep, no server.py endpoint. Mohamed starts and stops it himself when he wants to use it.
+
+**Authority:**
+- Can: install and run Juice Shop inside the existing Kali WSL2 distro; document how to start/stop/access it.
+- Cannot: expose it beyond `localhost`; give it any AI_EMPIRE credential, `.env` value, or network path to a real AI_EMPIRE/Fixera service; auto-start it on login or any schedule; treat findings from practicing against it as if they were findings about the real machine (that's Host Security Scanning's job, a completely separate pillar).
+
+**Escalation:** any change beyond the "Can" list follows the Escalation Chain above. Not yet built at time of scoping — installing Juice Shop inside Kali is the next step.
 
 ## Current implementation status (v0.1, 2026-08-06; Workflow Builder + Database Governance added 2026-08-10; Dependency Vulnerability Remediation added 2026-08-11)
 
