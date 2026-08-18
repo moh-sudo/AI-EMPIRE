@@ -6,20 +6,25 @@ deliberately duplicated, not cross-imported.
 
 from openai import APIError
 
-from shared.db import get_client
+from shared.scoped_db import get_scoped_client
 
-# NOTE: deliberately NOT using shared.scoped_db.get_scoped_client here,
-# unlike every other write path migrated in 0014_five_divisions_rls_jwt.sql.
-# Live-tested 2026-08-11: memory_experience/memory_knowledge -- the only
-# two tables in this project with a pgvector VECTOR column -- reject
-# EVERY insert under RLS as the scoped role, even an unconditionally
-# true WITH CHECK(true) policy on a brand-new throwaway table with the
-# same shape. Exhaustively ruled out: JWT claims, role switching, table
-# and column grants, triggers, RLS force settings, vector type USAGE
-# privilege. A genuine pgvector+RLS platform issue specific to this
-# project, not a policy mistake -- same class of real, documented
-# blocker as the Supavisor pooler issue in
-# governance/policies/systems_automation_governance.md's Rule 1.
+# Re-migrated to the scoped client 2026-08-18 -- the "pgvector + RLS"
+# platform bug this was reverted for (2026-08-11) turned out to be a
+# misdiagnosis. Real root cause, confirmed live: memory_experience/
+# memory_knowledge had no SELECT policy for most divisions, and
+# PostgREST's default insert behavior tries to SELECT the just-inserted
+# row back to return it -- that implicit read is itself subject to RLS,
+# so with no SELECT grant it always failed, surfacing as the same
+# generic "violates row-level security policy" error a real WITH CHECK
+# failure would. Nothing to do with vector columns at all -- fixed by
+# 0015_memory_knowledge_select_fix.sql (adds each division's own-row
+# SELECT policy), not by working around the write path. See
+# governance/policies/systems_automation_governance.md's Rule 1/pgvector
+# entries for the full history.
+
+
+def _client():
+    return get_scoped_client("learning_agent")
 
 
 def safe_add_experience(
@@ -41,10 +46,11 @@ def safe_add_experience(
             agent_id=agent_id,
             outcome=outcome,
             metadata=metadata,
+            client=_client(),
         )
     except (RuntimeError, APIError):
         result = (
-            get_client()
+            _client()
             .table("memory_experience")
             .insert(
                 {
@@ -79,10 +85,11 @@ def safe_add_knowledge(
             agent_id=agent_id,
             source=source,
             metadata=metadata,
+            client=_client(),
         )
     except (RuntimeError, APIError):
         result = (
-            get_client()
+            _client()
             .table("memory_knowledge")
             .insert(
                 {
