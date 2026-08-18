@@ -1432,6 +1432,20 @@ Picked this up as the next real target after finishing all 7 Systems & Automatio
 
 ---
 
+### 2026-08-18 (same day, continued) -- Systems' own memory_experience/memory_knowledge gap closed too
+
+Picked up the item deliberately left untouched two entries above. Unlike the other 5 divisions, this was never a pgvector misdiagnosis -- Systems simply never had its own scoped RLS policy on `memory_experience`/`memory_knowledge` at all, since 0010 (2026-08-06) only ever covered `circuit_breakers`/`audit_vault`.
+
+**`infrastructure/database/migrations/0016_systems_agent_memory_tables.sql`** adds `systems_agent`'s own-row INSERT+SELECT policies on both tables, exact same shape as `0015` -- the table-level `GRANT` already exists from `0014`/`0015` for the `authenticated` role broadly, so only the new policies were needed. Mohamed ran it against the real AI_EMPIRE project.
+
+**`agents/systems/_memory_helpers.py`** switched from `shared.db.get_client()` to `shared.scoped_db.get_scoped_client("systems_agent")`, same pattern as the other 5 divisions. `agents/systems/_telegram.py`'s failure-logging path (also flagged as a blanket-key user in `ARCHITECTURE.md`) turned out to need no separate change -- it already calls `safe_add_experience()`, so it's automatically covered by this fix.
+
+**Live-verified positive and negative, both directions:** a real write through `safe_add_experience`/`safe_add_knowledge`'s actual embedding-generation path succeeded (real IDs returned). `personal_agent` confirmed unable to read Systems' rows on either table, and `systems_agent` confirmed unable to read `forex`'s rows on either table -- isolation holds symmetrically, not just one direction. Full suite (103 tests) still green.
+
+This closes every open item from this session's Systems & Automation build-out -- every division now has genuinely least-privilege, scoped access to every table it uses, with no known gaps left on this specific front.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
