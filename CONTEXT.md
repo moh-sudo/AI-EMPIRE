@@ -1474,6 +1474,20 @@ Last item from the standing gap list (flagged 2026-08-11). Before building, chec
 
 ---
 
+### 2026-08-18 (same day, continued) -- Forex: a real 11-day outage found and fixed, autostart extended
+
+Standing gap list was fully cleared, so moved to a new area per Mohamed's choice: a different division, picked Forex. Rather than guess at a gap, checked real current state first -- and found one immediately. `memory_experience` showed only test rows and a stale cluster of `news_pause_alert`/`data_unavailable` events from 2026-08-06; `circuit_breakers` for `forex_server` told the real story: `state: fallback`, `failure_count: 151`, `last_success_at: 2026-08-07`, `opened_at: 2026-08-13` -- 11 real days down. Confirmed live: port 8002 genuinely wasn't listening, connection refused.
+
+**Not a bug in Reliability & Monitoring** -- it did exactly what it's designed to do (Rule 4, one restart attempt per incident, then wait for a human rather than thrash-retry). Nobody had manually started `forex_server` since 2026-08-07, so it just sat correctly waiting. Same root cause as the n8n/systems-server gap fixed 2026-08-13-15, just not yet extended to any division server.
+
+**Fixed immediately:** started `forex_server` directly (`uvicorn agents.forex.server:app --port 8002 --host 0.0.0.0`, matching `reliability_monitor.py`'s own `restart_division_server()` command shape exactly), confirmed `200` on `/openapi.json`. Triggered a real `/health-check` sweep to verify the recovery -- and found n8n's own automatic 5-minute sweep had *already* caught it moments earlier (`last_failure_at` on the row was a few minutes before the confirmed `last_success_at`), a nice unplanned proof that the automated monitoring genuinely works unattended, not just when manually triggered.
+
+**Structural fix:** added `forex_server` to `infrastructure/scripts/autostart_n8n_and_systems.ps1`, right after the systems server block. **A second real bug surfaced immediately, live-testing the change:** the existing fixed 10-second delay before the `host-security-scan` login trigger (reliable with two processes starting) wasn't reliable with three competing for this laptop's resources at once -- the trigger genuinely failed with a connection error on the very next full-cycle test. Fixed with one bounded retry (20s), same shape as the existing n8n `MODULE_NOT_FOUND` retry above it in the same script. Confirmed fixed with a second full clean stop/retrigger cycle: all three services came up, and the host-security-scan trigger succeeded on this run.
+
+**Scope stated honestly:** only Forex was investigated and fixed today. Fixera, Personal & Education, Learning, RII, and Audit's own division servers weren't checked -- they may or may not have the same problem, not assumed either way.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles

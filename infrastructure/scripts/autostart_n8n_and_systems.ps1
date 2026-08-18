@@ -1,14 +1,19 @@
-# Auto-starts n8n and the Systems & Automation server on login, and
-# triggers one host-security-scan per real login session. Registered
-# as a per-user Scheduled Task ("At log on" trigger) -- see
-# infrastructure/scripts/register_autostart.ps1. Addresses the
-# "nothing persists across a machine restart" gap noted in
-# ARCHITECTURE.md's Known Gaps, for these services specifically (n8n,
-# for its own scheduled workflows like systems-ci-health-check-scheduled;
-# the Systems & Automation server, so n8n's HTTP Request nodes have
-# something to hit; host-security-scan, triggered directly here rather
-# than via an n8n daily schedule -- see the login-trigger block below
-# for why).
+# Auto-starts n8n, the Systems & Automation server, and the Forex
+# server on login, and triggers one host-security-scan per real login
+# session. Registered as a per-user Scheduled Task ("At log on"
+# trigger) -- see infrastructure/scripts/register_autostart.ps1.
+# Addresses the "nothing persists across a machine restart" gap noted
+# in ARCHITECTURE.md's Known Gaps, for these services specifically
+# (n8n, for its own scheduled workflows like
+# systems-ci-health-check-scheduled; the Systems & Automation server,
+# so n8n's HTTP Request nodes have something to hit; host-security-scan,
+# triggered directly here rather than via an n8n daily schedule -- see
+# the login-trigger block below for why; Forex, found live 2026-08-18
+# to have been down for 11 real days -- circuit_breakers showed
+# forex_server in "fallback" state with 151 consecutive failures,
+# last real success 2026-08-07, because Reliability & Monitoring's own
+# "one restart attempt per incident" rule correctly stopped retrying
+# and just waited for a human to actually start it, which nobody had).
 
 $repoRoot = "C:\moh-sudo"
 $logDir = "$env:TEMP\ai_empire_autostart"
@@ -60,6 +65,16 @@ Start-Process -FilePath "$repoRoot\.venv\Scripts\python.exe" `
     -RedirectStandardOutput "$logDir\systems_server.log" `
     -RedirectStandardError "$logDir\systems_server_err.log"
 
+# Forex server -- host 0.0.0.0 matches reliability_monitor.py's own
+# restart_division_server() command shape exactly, so a manual restart
+# and an automated one look identical to anything checking the process.
+Start-Process -FilePath "$repoRoot\.venv\Scripts\python.exe" `
+    -ArgumentList "-m", "uvicorn", "agents.forex.server:app", "--port", "8002", "--host", "0.0.0.0" `
+    -WorkingDirectory $repoRoot `
+    -WindowStyle Hidden `
+    -RedirectStandardOutput "$logDir\forex_server.log" `
+    -RedirectStandardError "$logDir\forex_server_err.log"
+
 # Trigger one host-security-scan per real login session, instead of a
 # fixed n8n daily clock-time schedule. Found live 2026-08-18, checking
 # n8n's own execution_entity table: the daily 06:00 EAT trigger had
@@ -72,10 +87,23 @@ Start-Process -FilePath "$repoRoot\.venv\Scripts\python.exe" `
 # infrastructure/n8n/systems-host-security-scan-scheduled.json, which
 # Mohamed removed from n8n -- the file is deleted from the repo too,
 # so Architecture Assurance's drift detector has nothing stale to flag.
+#
+# One bounded retry, same "one remediation attempt" shape as n8n's own
+# retry above -- found live 2026-08-18 immediately after adding the
+# Forex server start above: the fixed 10s delay was reliable with two
+# processes starting, but not with three competing for this laptop's
+# resources at once, and the trigger failed with a real connection
+# error ("Unable to connect to the remote server") on that exact run.
 Start-Sleep -Seconds 10
 try {
     $scanResult = Invoke-RestMethod -Uri "http://127.0.0.1:8007/host-security-scan" -Method Post -TimeoutSec 60
     $scanResult | ConvertTo-Json -Compress | Out-File -FilePath "$logDir\host_security_scan_login_trigger.log" -Encoding utf8
 } catch {
-    "Failed to trigger host-security-scan at login: $_" | Out-File -FilePath "$logDir\host_security_scan_login_trigger.log" -Encoding utf8
+    Start-Sleep -Seconds 20
+    try {
+        $scanResult = Invoke-RestMethod -Uri "http://127.0.0.1:8007/host-security-scan" -Method Post -TimeoutSec 60
+        $scanResult | ConvertTo-Json -Compress | Out-File -FilePath "$logDir\host_security_scan_login_trigger.log" -Encoding utf8
+    } catch {
+        "Failed to trigger host-security-scan at login (after one retry): $_" | Out-File -FilePath "$logDir\host_security_scan_login_trigger.log" -Encoding utf8
+    }
 }
