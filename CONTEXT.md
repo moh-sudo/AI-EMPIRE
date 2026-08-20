@@ -1710,6 +1710,21 @@ Mohamed picked closing the clean-pass gap next -- flagged repeatedly since 2026-
 
 ---
 
+### 2026-08-20, later still -- standing approval for two proven Red Team exercise classes, a governance-only amendment
+
+Mohamed picked "a more autonomous Red Team" as the next item. Recognized this as a real governance decision, not a build task -- the RoE itself explicitly calls full autonomy "a future governance step, not this one," and "more autonomous" spans a huge range of actual risk. Asked directly rather than assuming which of three tiers was meant: standing approval for already-proven exercise classes, a fixed scheduled regression sweep, or a genuinely autonomous agent that invents new exercises. **Mohamed chose the narrowest: standing approval for already-proven classes.**
+
+**Amended `red_team_rules_of_engagement.md`, no code changed.** Added a new "Standing approval for proven exercise classes" section covering exactly two exercise shapes, both run multiple times already with clean results and well-understood, read-only/non-destructive blast radius:
+
+- **Class 1, scoped-role boundary testing:** the exact `get_scoped_client(role).table(table).select("*").execute()` shape, any `(role, table)` pair except Fixera, with the mandatory ground-truth check (found necessary on the very first exercise 2026-08-18) still required every time.
+- **Class 2, prompt injection against an existing LLM call site:** calling an already-existing `chat()`/`generate()`-based function's lowest-level, side-effect-free entry point directly -- a genuinely new call site added later isn't automatically in scope, since its blast radius hasn't been reviewed yet.
+
+**What standing approval explicitly does not do, stated as plainly as the grant itself:** no cron job, scheduled trigger, or unattended process may invoke these -- a human (Mohamed, via an active session) still has to be the one directing Red Team work; this only removes the per-run 5-step approval conversation for these two bounded classes, not the human-in-the-loop requirement itself. SSRF/URL-fetch testing, secret-disclosure beyond Class 2's exact shape, memory-poisoning, and multi-agent manipulation all stay exercise-by-exercise -- SSRF specifically named as excluded on purpose, since it just produced a real finding by reaching genuinely external state, unlike the two bounded classes. **Any exercise that produces an actual finding suspends standing approval entirely until Mohamed reviews it** -- a real finding is never treated as "this class is still safe, keep going."
+
+**Also corrected three now-stale references while already in the document:** the Status line (written 2026-08-18 saying nothing had been exercised yet -- now 6 real exercises later), two "Blue Team, once scoped" references (Blue Team has had real governance and real code since 2026-08-18/20), and the closing "What this document does not do" section (clarified it still doesn't authorize an autonomous *agent*, just removes a conversation step for two bounded classes).
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles

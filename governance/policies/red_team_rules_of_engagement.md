@@ -11,10 +11,12 @@ Escalation — notify Audit, Systems, and Mohamed").
 **Written by:** Mohamed + Claude, 2026-08-18, drafted before any Red Team code exists —
 matches Rule 10's "new capability scoped in governance before built" precedent already
 used for every other agent in this project.
-**Status:** Governance only. No Red Team agent or capability exists yet. This document
-is the hard prerequisite the vision document itself named as "non-negotiable, not
-deferred" — nothing described under "Permitted techniques" below may be exercised,
-manually or by an agent, until this document is reviewed and confirmed by Mohamed.
+**Status:** Reviewed and confirmed by Mohamed 2026-08-18, since exercised for real —
+6 exercises run as of 2026-08-20 (4 scoped-role boundary tests, 1 prompt-injection
+test, 1 URL-fetch/SSRF test that found a real vulnerability, since fixed and
+independently verified). No autonomous Red Team *agent* exists — see the
+standing-approval carve-out below for what has changed since this document was first
+written.
 
 ## Purpose
 
@@ -97,10 +99,10 @@ Anything not explicitly listed above requires a fresh, written scope extension
 approved by Mohamed before use — this list is intentionally not exhaustive, the
 default is "not permitted unless named."
 
-## Approval process (every exercise, no standing authorization)
+## Approval process (default: every exercise, no standing authorization)
 
 Matches Law 13 Rule 10 exactly — a Red Team exercise may never self-approve. Before
-any exercise:
+any exercise not covered by the standing-approval carve-out below:
 
 1. State the specific target (which agent, which table, which workflow).
 2. State the specific technique from the "Permitted techniques" list above.
@@ -114,7 +116,72 @@ dedicated agent is separately scoped and reviewed (a future governance step, not
 one), Red Team exercises are run manually, by Claude, only when Mohamed directs a
 specific exercise live — the same "no autonomous freelancing in a high-risk category"
 posture already applied to Bug Detection's `propose_fix()` and every migration in this
-project.
+project. The standing-approval carve-out below does not change this: it removes the
+per-run approval *conversation*, not the requirement that a human (Mohamed, via an
+active session) is the one directing Red Team work in the first place. No cron job,
+scheduled trigger, or unattended process may invoke these exercises.
+
+## Standing approval for proven exercise classes (added 2026-08-20)
+
+Mohamed's explicit choice, after weighing three options (standing approval for
+already-proven classes / a fixed scheduled regression sweep / a genuinely autonomous
+agent that invents new exercises) — this document implements the first, narrowest one.
+Two exercise classes have now been run multiple times, always clean, always
+read-only/non-destructive by construction, with well-understood blast radius. For these
+two specifically, Claude may run a new instance of the same shape **without repeating
+the 5-step approval conversation each time** — everything else in this document
+(hard exclusions, stop conditions, evidence/reporting, severity classification) still
+applies in full, unchanged.
+
+### Class 1 — Scoped-role boundary testing
+
+- **Exact shape:** `get_scoped_client(role).table(table).select("*").execute()` — one
+  read-only `SELECT`, nothing else. Any `(role, table)` pair is in scope **except**
+  anything Fixera-related (hard exclusion, unconditional) or a table/role pair already
+  tested with the identical result on record.
+- **Mandatory ground-truth check, every time:** before reporting a result, the same
+  table's real row count must be checked via the service-role client (`shared/db.py`'s
+  `get_client()`) — a `0`-row scoped result is meaningless without confirming the table
+  actually has data the scoped role should have been blocked from seeing. This isn't
+  optional shortcut territory; it's what makes the result trustworthy at all (found
+  necessary live on 2026-08-18's first exercise).
+- **4 exercises of this exact shape already run, all clean** (`personal_habits` x2,
+  `rii_watchtowers` x1, and the original disambiguation).
+
+### Class 2 — Prompt injection against an existing LLM call site
+
+- **Exact shape:** call an *already-existing* `chat()`/`generate()`-based function
+  directly in Python (never via real Telegram — no real message send, no real bot
+  interaction) with text containing an embedded instruction designed to override the
+  function's system prompt. Only the **lowest-level pure function** that does not
+  persist data or trigger a real external side effect may be called — e.g.
+  `generate_flashcards_from_text()`, never `ingest_and_generate()` (which would write a
+  real row to `learning_cards`); `answer_question()`, which already has no side effect
+  by design.
+- **A genuinely new call site (one added to the codebase after this amendment) is not
+  automatically in scope** — it hasn't been reviewed for whether a lower-level,
+  side-effect-free entry point actually exists, so a first exercise against it still
+  needs the full 5-step approval.
+- **2 exercises of this exact shape already run, both clean** (Learning's flashcard
+  generation, Forex's chat handler).
+
+### What standing approval does not cover
+
+- Any technique not in these two classes — SSRF/URL-fetch testing, secret-disclosure
+  beyond Class 2's exact shape, memory-poisoning, multi-agent manipulation, anything
+  novel — still needs the full 5-step approval every time. (SSRF specifically produced
+  a real finding via URL-fetch testing on 2026-08-20; that class stays exercise-by-exercise
+  precisely because it reaches genuinely external state, unlike the two bounded classes
+  above.)
+- **Any exercise, standing-approved or not, that produces an actual finding (not a
+  clean pass) suspends standing approval entirely until Mohamed reviews it.** A finding
+  means the exercise revealed something real; the response is to stop, report, and wait
+  for direction — never to keep running more standing-approved exercises on the
+  assumption the same class is still safe. Reinstating standing approval after a real
+  finding is Mohamed's call, not automatic.
+- All hard exclusions, stop conditions, evidence-preservation, and severity
+  classification rules apply identically whether an exercise was standing-approved or
+  individually approved — nothing about reporting or evidence gets lighter-weight.
 
 ## Minimum necessary access
 
@@ -155,10 +222,12 @@ Concretely, halt immediately if any of these occur:
   observed behavior, evidence, impact, reproduction conditions, scope, tester, and the
   authorization reference (which approved-exercise conversation authorized it).
 - The Red Team does not remediate or approve its own findings. Remediation is assigned
-  to the appropriate defensive or engineering function (Blue Team, once scoped, or
-  whichever agent/person owns the affected system). Red Team may subsequently retest
-  the remediation when separately authorized to do so — this preserves separation of
-  duties without blocking the Red Team from verifying a fix actually worked.
+  to Blue Team (`governance/policies/blue_team_governance.md`, real since 2026-08-18)
+  via `agents/systems/blue_team_finding_intake.py`'s `receive_finding()`. Red Team may
+  subsequently retest the remediation when separately authorized to do so — this
+  preserves separation of duties without blocking the Red Team from verifying a fix
+  actually worked. Proven end to end 2026-08-20: the SSRF finding above went through
+  this exact path, then QA and Audit independently verified the fix.
 - No evidence may be altered or deleted once recorded, including to "clean up" a test —
   mirrors Law 13 Rule 6 ("Security Audit Cannot Be Disabled... no agent may suppress
   alerts or modify audit evidence"), applied here to Red Team's own findings.
@@ -193,9 +262,10 @@ flagged to Mohamed rather than attempted.
 
 Per the vision document's own principle: if Blue Team knows exactly when and how Red
 Team will test, defenses get built for the test rather than for genuine resilience.
-Until Blue Team is itself scoped, this is a placeholder rule — but the intent holds
-even during manual, Claude-run exercises: a Red Team finding is reported to Mohamed
-and Audit, not used to silently pre-brief whichever agent's defenses it targeted.
+Applies even during manual, Claude-run exercises: a Red Team finding is reported to
+Mohamed and Audit through `blue_team_finding_intake.py`, not used to silently pre-brief
+whichever agent's defenses it targeted, and Blue Team never learns the exercise was
+coming before it ran.
 
 ## Escalation
 
@@ -206,8 +276,11 @@ an exercise actually followed this RoE, not just that its findings look real.
 
 ## What this document does not do
 
-- It does not authorize building a Red Team agent. That's a separate, future scoping
-  step, per Rule 10, once Mohamed decides to move from "manual, approved-per-exercise"
-  to something more automated.
-- It says nothing about Blue Team, which needs its own governance document before any
-  Blue Team capability is built either.
+- It does not authorize building a Red Team *agent* — an autonomous process that judges
+  what to test next. The standing-approval carve-out above removes a per-run approval
+  conversation for two specific, already-proven exercise classes; it does not create
+  anything that runs unattended, and Mohamed explicitly chose this narrowest option
+  over a scheduled sweep or a genuinely autonomous agent when asked directly. Building
+  either of those remains a separate, future scoping step per Rule 10.
+- Blue Team's own governance now lives in `governance/policies/blue_team_governance.md`
+  — this document no longer needs to say "once scoped" about it.
