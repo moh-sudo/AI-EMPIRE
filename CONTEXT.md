@@ -1686,6 +1686,16 @@ Mohamed asked to close the loop with QA/Audit verification. Genuinely independen
 
 ---
 
+### 2026-08-20, later still -- codebase-wide sweep for the same SSRF class: no other instances found
+
+Mohamed asked to check other content-ingestion paths for the same vulnerability class now that one real instance had been found and fixed. Grepped every outbound HTTP call site across the whole `agents/` tree (`requests.get/post/request`, `urlopen`, `fetch_url`, `httpx`) rather than guessing which paths might be risky -- static review, not live probing, since the question was "does this pattern exist elsewhere," not "can I exploit this specific target."
+
+**Checked and confirmed safe, one by one:** every `*/telegram_listener.py`/`*/_telegram.py` call hits a hardcoded `api.telegram.org` URL; `agents/forex/research.py`'s calendar and central-bank-feed fetches use a hardcoded constant and a fixed 5-entry dict respectively (`bank` selects which trusted URL, it can't construct an arbitrary one); `agents/fixera/marketing.py`'s Facebook post uses a hardcoded Graph API base; `agents/systems/ci_health_monitor.py` uses a hardcoded GitHub API base; `agents/systems/reliability_monitor.py`'s `_http_ok()` callers only ever pass `OLLAMA_BASE_URL` (a trusted env var) or `127.0.0.1` division-server checks, never attacker-influenced input; `extract_text_from_youtube()` never fetches the raw URL at all, only extracts an 11-character video ID via regex and hands that to the YouTube transcript library.
+
+**Result: `extract_text_from_url()` (fixed in `5e35859`) was the only call site anywhere in the codebase that fetched a genuinely arbitrary, externally-controllable URL.** Logged to `audit_vault` (`action: red_team_codebase_sweep_completed`) and reported to Mohamed via Telegram, confirmed delivered.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
