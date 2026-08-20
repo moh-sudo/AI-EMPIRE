@@ -1783,6 +1783,28 @@ Mohamed approved fixing it. Added logging to both functions in `agents/rii/watch
 
 ---
 
+### 2026-08-20, later still -- Forex checked: the cleanest division this session, plus a real fail-safe confirmed working correctly
+
+Mohamed picked Forex, the last unchecked division. No stub/mock-data staleness found this time (unlike Fixera, Personal & Education, and RII, which each had at least one) -- `agents/forex/_memory_helpers.py`'s embedding-fallback comment and `ceo_lead.py`'s "MT5 not connected" message both turned out to be accurate, legitimate current behavior on closer reading, not stale claims.
+
+Checked real activity rather than stopping at "no stubs found": all 3 Forex n8n workflows (`forex-ceo-briefing-scheduled`, `forex-ceo-briefing-telegram-poll`, `forex-entry-exit-telegram-poll`) genuinely active and firing. Ran a real `run_daily_briefing()` live: real central bank data (Fed/ECB/BOJ/SNB RSS feeds), an honest "MT5 not connected" (legitimate -- no MT5 terminal running on this machine right now), an honest "performance review not ready."
+
+**One thing looked like it might be a bug and turned out to be a real fail-safe working correctly.** All 8 traded pairs showed `NEWS FILTER: PAUSE` simultaneously. Investigated rather than assuming a bug or dismissing it: `should_pause_for_news()` returned `data_unavailable: True` -- but a direct `fetch_forexfactory_calendar()` call had *just* succeeded moments earlier with 98 real events, so something inconsistent was happening. Retried the fetch 3 more times: all failed with a real `HTTPError 429 Too Many Requests`. Root cause: repeated rapid manual test calls (mine) against an endpoint with no caching/backoff had triggered a real rate limit -- production usage (every 6-12 hours via the scheduled briefing) is nowhere near frequent enough to hit this naturally. `should_pause_for_news()`'s own design ("couldn't verify" must never be silently treated as "confirmed clear" for a live trading gate) responded exactly as intended: paused everything rather than risk trading blind on unverifiable news data. Deliberately stopped retrying once the pattern was clear, rather than risk extending my own self-inflicted rate limit further.
+
+---
+
+### 2026-08-20, later still -- Ollama's raw IP replaced with mDNS hostname discovery, closing the recurring drift for good
+
+After the third IP change of the day, Mohamed asked to actually fix the recurring friction rather than keep patching it. Presented two real options (hostname-based mDNS vs. a router-side DHCP reservation) plus "leave it as-is" -- Mohamed chose the hostname approach.
+
+**Verified before committing to it, not assumed to work:** got the Mac's display name ("zienab's macbook Air") from Mohamed, derived the likely mDNS hostname (`Zienabs-MacBook-Air.local`, macOS's standard space/apostrophe-stripping convention), and tested it directly -- `ping` resolved it correctly to the real current IP (`192.168.100.6`), and a direct `curl` to `/api/tags` returned a real `200`.
+
+**Found a real inconsistency worth investigating rather than glossing over:** the first `check_ollama()`/`requests` call through the hostname failed fast (1.4s, not a timeout) right after `curl` had just succeeded through the identical hostname. Rather than assume either "it's broken" or "it was a fluke," ran 8 more rapid retries: all 8 succeeded. Windows doesn't have first-class native mDNS support the way macOS/Linux do, so occasional resolution blips are a known, honest characteristic of this approach -- not something to pretend doesn't exist. Confirmed the existing fail-safe design already tolerates this gracefully: a real sweep showed `ollama` had gone to `warning` from that one failed check, then recovered to `healthy` on the very next successful one -- exactly the intended behavior, no false alarm, no manual intervention needed.
+
+**Switched `.env`'s `OLLAMA_BASE_URL` to `http://Zienabs-MacBook-Air.local:11434`**, restarted the 4 affected servers (forex/learning/rii/systems), confirmed via a real sweep -- all 10 services `healthy`. `ARCHITECTURE.md`'s Ollama entry updated to describe the switch and its honest reliability caveat. This should be the last time the IP drift itself needs a manual fix -- only a genuine Mac hostname change would need one going forward, not a router/DHCP reassignment.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
