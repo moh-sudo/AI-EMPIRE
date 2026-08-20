@@ -77,11 +77,20 @@ def check_n8n() -> bool:
     return _tcp_reachable("127.0.0.1", N8N_PORT)
 
 
+OLLAMA_CHECK_TIMEOUT = 30.0  # real round-trip to the Mac measured at ~20.7s
+# over a slow WiFi link on 2026-08-18 -- _http_ok's 5s default was a false
+# negative (circuit_breakers showed "fallback" while Ollama was genuinely
+# reachable and serving real requests), found live while investigating why
+# the state hadn't recovered since 2026-08-07. Local-only callers of
+# _http_ok (_check_division_server) keep the fast 5s default -- a slow
+# localhost response is a real problem, not network variance to tolerate.
+
+
 def check_ollama() -> bool:
     base = os.environ.get("OLLAMA_BASE_URL", "")
     if not base:
         return False
-    return _http_ok(f"{base}/api/tags")
+    return _http_ok(f"{base}/api/tags", timeout=OLLAMA_CHECK_TIMEOUT)
 
 
 def check_supabase() -> bool:

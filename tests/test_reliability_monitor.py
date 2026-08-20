@@ -155,3 +155,19 @@ def test_division_port_map_matches_live_deployment(division, expected_port):
     """Guards against a silent typo in DIVISION_PORTS ever causing the
     monitor to health-check (or restart!) the wrong service."""
     assert rm.DIVISION_PORTS[division] == expected_port
+
+
+def test_check_ollama_uses_the_longer_remote_timeout_not_the_5s_local_default():
+    """Regression test for a real false negative found live 2026-08-19:
+    circuit_breakers showed ollama stuck in "fallback" since 2026-08-07
+    even though Ollama was genuinely reachable and serving real
+    requests -- the real round-trip over WiFi to the Mac measured
+    ~20.7s, well past _http_ok's 5s default built for fast local
+    division-server checks."""
+    with (
+        patch.dict(rm.os.environ, {"OLLAMA_BASE_URL": "http://192.168.100.21:11434"}),
+        patch.object(rm, "_http_ok", return_value=True) as mock_http_ok,
+    ):
+        rm.check_ollama()
+    mock_http_ok.assert_called_once_with("http://192.168.100.21:11434/api/tags", timeout=rm.OLLAMA_CHECK_TIMEOUT)
+    assert rm.OLLAMA_CHECK_TIMEOUT > 20.7
