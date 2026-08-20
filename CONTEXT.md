@@ -1594,6 +1594,22 @@ Mohamed asked for more Red Team coverage. Before proposing anything, checked the
 
 ---
 
+### 2026-08-20, early morning -- check_ollama() false-negative fixed, and a real live outage found and resolved along the way
+
+Picked back up on the deferred item from 08-19: `circuit_breakers` had `ollama` stuck in `fallback` since 08-07 despite Ollama being genuinely reachable (proven the session before). Root cause confirmed: `check_ollama()` used `_http_ok`'s 5s default timeout, built for fast localhost division-server checks, but the real round-trip to the Mac over WiFi measured ~20.7s. Gave `check_ollama()` its own `OLLAMA_CHECK_TIMEOUT = 30.0`, explicit and separate from the 5s default still correctly used for local checks. 17 tests passing (1 new regression test asserting the longer timeout is actually passed through). Live-verified: `check_ollama()` returned `True` in 6.2s on a fresh real call, and a real `run_health_check_sweep()` flipped `ollama`'s `circuit_breakers` row from `fallback` to `healthy`.
+
+**That same sweep surfaced something much bigger, live, in real time:** n8n and all 6 division servers flipped `healthy -> warning` simultaneously. Verified with direct `curl`/`netstat` rather than trusting the DB state alone -- all 7 were genuinely unreachable, nothing listening on any port. Checked `infrastructure/scripts/autostart_n8n_and_systems.ps1`'s own log directory before restarting anything (to not lose evidence): the script had genuinely run at login (07:16 EAT that morning, matching "let's do it early morning" from the evening before) -- 6 division servers and the systems server started fine (their "error" logs were just normal uvicorn INFO output, a red herring), but n8n hit its known `MODULE_NOT_FOUND` login-timing race and failed even after the script's one existing retry.
+
+**Root cause of several confusingly-flaky diagnostic commands along the way:** checked real system resources directly via `psutil` rather than assuming the machine was fine -- 100% CPU, 354MB free memory. Top consumers: four separate `claude.exe` (Claude Code) processes combining for over 1GB, plus ProtonVPN, Chrome, WhatsApp, OneDrive, and Proton Drive all live at once -- ordinary desktop load at login, nothing AI_EMPIRE-related, but severe enough to make `netstat`/`tasklist` themselves intermittently hang and return misleadingly empty results.
+
+**Fixed live:** manually restarted n8n (`node.exe` directly on its entry script, matching the autostart script's own command exactly) -- confirmed via its real log output (`n8n ready on ::, port 5678`) rather than assuming success. A final `run_health_check_sweep()` confirmed all 10 tracked services genuinely `healthy`.
+
+**Fixed structurally, per Mohamed's explicit choice:** added a second retry to the n8n startup block in `autostart_n8n_and_systems.ps1` (15s wait, longer than the first retry's 10s) -- this specific race had now been observed live to survive one retry, so a second was added rather than leaving it as a one-off. Syntax-validated via PowerShell's own parser (`[System.Management.Automation.Language.Parser]::ParseFile`) rather than running the whole script, since the machine was still at 100% CPU / 351MB free when the fix landed -- deliberately did not force a full clean stop/retrigger cycle (which would restart 8 processes) on top of a machine already under real, unrelated load; that live retest is still owed once the system isn't already strained, not skipped permanently.
+
+Both fixes committed and pushed separately from this point: `560f4df` (check_ollama), plus a follow-up for the autostart retry.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles

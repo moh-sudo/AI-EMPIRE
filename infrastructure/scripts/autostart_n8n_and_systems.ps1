@@ -30,11 +30,12 @@ New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 # n8n crashed with "Cannot find module ...\n8n\bin\n8n" (MODULE_NOT_FOUND)
 # at login, even though the exact same command, run moments later by
 # hand, worked correctly and the file was genuinely present the whole
-# time. A short delay up front, plus one retry specifically for n8n if
+# time. A short delay up front, plus retries specifically for n8n if
 # that exact failure signature shows up, works around the race without
 # masking a real, persistent failure -- matches this division's "one
-# remediation attempt" precedent (e.g. host_security_scan.py's WSL2
-# retry, Rule 4's "one restart attempt per incident").
+# remediation attempt per incident" precedent elsewhere (e.g.
+# host_security_scan.py's WSL2 retry), just applied twice here since
+# this specific race has now been observed live to survive one retry.
 Start-Sleep -Seconds 15
 
 # Calls node.exe directly on n8n's actual entry script rather than the
@@ -62,6 +63,21 @@ Start-Sleep -Seconds 5
 if ((Test-Path $n8nErrLog) -and (Select-String -Path $n8nErrLog -Pattern "MODULE_NOT_FOUND" -Quiet)) {
     Start-Sleep -Seconds 10
     Start-N8nProcess
+    # Second retry added 2026-08-20: found live that morning that one
+    # retry wasn't always enough -- this specific login had the machine
+    # at 100% CPU / 354MB free memory (4 separate Claude Code windows
+    # plus ProtonVPN, Chrome, WhatsApp, OneDrive, Proton Drive all
+    # starting at once), and even the first retry still hit
+    # MODULE_NOT_FOUND. Fixed that morning with a manual restart;
+    # this closes the gap structurally so it self-heals next time
+    # instead of needing a human again. Longer wait (15s vs. the first
+    # retry's 10s) since a second failure under real load deserves more
+    # settle time, not the same delay repeated.
+    Start-Sleep -Seconds 5
+    if ((Test-Path $n8nErrLog) -and (Select-String -Path $n8nErrLog -Pattern "MODULE_NOT_FOUND" -Quiet)) {
+        Start-Sleep -Seconds 15
+        Start-N8nProcess
+    }
 }
 
 Start-Process -FilePath "$repoRoot\.venv\Scripts\python.exe" `
