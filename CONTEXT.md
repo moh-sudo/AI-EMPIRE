@@ -1610,6 +1610,26 @@ Both fixes committed and pushed separately from this point: `560f4df` (check_oll
 
 ---
 
+### 2026-08-20, same morning, continued -- the deferred full clean stop/retrigger test run, deliberately under real heavy load
+
+Mohamed asked to run the deferred test now rather than wait. System was still at 100% CPU, unimproved. Went ahead anyway on the reasoning that testing under the exact load conditions the fix targets is more honest than testing calm and hoping it generalizes.
+
+**Killing all 8 processes itself required patience** -- a single loop over all 8 ports timed out under the load after only killing n8n; finished the remaining 7 one `taskkill` at a time with individual confirmations rather than trusting a batched command that had already shown it could silently stall partway through.
+
+**n8n genuinely succeeded, but slowly, and the first read looked like a failure.** Ran the script in the background, waited, checked logs -- both `n8n.log` and `n8n_err.log` were completely empty, and port 5678 wasn't listening, which briefly looked exactly like the bug from that morning recurring immediately after being fixed. Checked whether node.exe processes existed at all before concluding anything (`tasklist`) -- two were genuinely running, meaning n8n had launched and was just slow to flush any output under the CPU contention, not crashed. Waited longer and re-checked: `n8n ready on ::, port 5678`, confirmed listening. This run never actually hit `MODULE_NOT_FOUND` at all -- succeeded on the very first attempt, just took several real minutes (visible in the log as repeated `Database ping failed`/task-runner-connection errors before eventually settling) -- so the new second retry added earlier that morning was present but not actually exercised by this particular test.
+
+**All 6 division servers + the systems server started fast, no issues.**
+
+**One new, real gap surfaced:** the `host-security-scan` login trigger failed with a genuine timeout (`The operation has timed out`, not a connection error) even after its own retry. Called `/host-security-scan` directly afterward with a patient 180s curl timeout to check whether the endpoint itself was actually broken or just slow -- it returned a real `200` with real scan data after **114.6 seconds**, nearly double the script's fixed 60s `TimeoutSec`. The scan logic was never the problem; the timeout given to it just wasn't generous enough for a morning like this one.
+
+**A separate, unrelated blip during the same test, checked rather than assumed:** one `run_health_check_sweep()` showed `ollama` back in `fallback`. Checked directly rather than assuming the morning's earlier fix had regressed -- `check_ollama()` failed instantly (0.0s, a real connection-level failure, not the 30s timeout being hit), but a fresh `ping` (12-154ms, much better than earlier that morning) and a direct `curl`/`requests` call both succeeded normally moments later. Treated as a genuine transient blip, not a regression -- re-ran the sweep and `ollama` flipped straight back to `healthy`.
+
+**Fixed, per Mohamed's explicit choice:** bumped the `host-security-scan` trigger's `TimeoutSec` from 60 to 180 (both the initial call and its retry) in `autostart_n8n_and_systems.ps1`, leaving real headroom above the 114.6s worst case measured live. Syntax-validated via PowerShell's own parser; a fresh full end-to-end retest wasn't repeated for this specific change since the real timing data was already in hand from the direct endpoint call moments earlier -- re-running the whole heavy test again for a single number change wasn't necessary evidence, not corner-cutting.
+
+Final state confirmed via a real sweep: all 10 tracked services `healthy`.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles

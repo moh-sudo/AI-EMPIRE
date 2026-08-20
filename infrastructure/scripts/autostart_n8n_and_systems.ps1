@@ -130,14 +130,24 @@ foreach ($svc in $divisionServers) {
 # Bumped 10s -> 20s the same day when the remaining 5 division servers
 # were added (8 total processes now starting at login, not 3) -- the
 # retry below still exists as the actual safety net either way.
+#
+# TimeoutSec bumped 60 -> 180 on 2026-08-20: a full clean stop/retrigger
+# test run deliberately under real heavy load (100% CPU, the same
+# morning as the n8n second-retry fix above) failed with a genuine
+# timeout, not a connection error -- calling /host-security-scan
+# directly afterward showed the real nmap/WSL2 scan took 114.6s under
+# that load, well past the old 60s limit. The scan itself was never
+# broken; the timeout given to it just wasn't generous enough for a
+# loaded morning. 180s leaves real headroom above the worst measured
+# case without being unbounded.
 Start-Sleep -Seconds 20
 try {
-    $scanResult = Invoke-RestMethod -Uri "http://127.0.0.1:8007/host-security-scan" -Method Post -TimeoutSec 60
+    $scanResult = Invoke-RestMethod -Uri "http://127.0.0.1:8007/host-security-scan" -Method Post -TimeoutSec 180
     $scanResult | ConvertTo-Json -Compress | Out-File -FilePath "$logDir\host_security_scan_login_trigger.log" -Encoding utf8
 } catch {
     Start-Sleep -Seconds 20
     try {
-        $scanResult = Invoke-RestMethod -Uri "http://127.0.0.1:8007/host-security-scan" -Method Post -TimeoutSec 60
+        $scanResult = Invoke-RestMethod -Uri "http://127.0.0.1:8007/host-security-scan" -Method Post -TimeoutSec 180
         $scanResult | ConvertTo-Json -Compress | Out-File -FilePath "$logDir\host_security_scan_login_trigger.log" -Encoding utf8
     } catch {
         "Failed to trigger host-security-scan at login (after one retry): $_" | Out-File -FilePath "$logDir\host_security_scan_login_trigger.log" -Encoding utf8
