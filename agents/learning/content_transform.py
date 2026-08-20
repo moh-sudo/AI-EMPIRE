@@ -9,10 +9,12 @@ since it's already proven working for the Fixera/Forex chat -- an
 intentional exception to the general architecture-first default for
 this specific division.
 
-Voice note ingestion still depends on shared/voice/speech_to_text.py,
-which IS stubbed (a hardware/model decision, separate from this file's
-own choice) -- fails closed with an honest reason until that's
-connected, same as everywhere else voice is used.
+Voice note ingestion depends on shared/voice/speech_to_text.py, which
+was stubbed when this file was first written but has run real
+faster-whisper transcription in-process since 2026-08-10 (see
+ARCHITECTURE.md) -- corrected here 2026-08-20 after confirming
+extract_text_from_voice() below already calls the real transcribe(),
+the docstring just hadn't caught up.
 """
 
 import ipaddress

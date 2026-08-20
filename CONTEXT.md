@@ -1739,6 +1739,18 @@ Mohamed picked a different division to check next. Chose Fixera. Grepped for stu
 
 ---
 
+### 2026-08-20, later still -- Personal & Education checked: the exact same stale-docstring pattern found in voice transcription
+
+Mohamed picked a different division again. Chose Personal & Education. Same discipline as Fixera: grepped `agents/personal/*.py`/`agents/learning/*.py` for stub/TODO/mock markers before assuming anything. Most hits were reassuring, not gaps -- `habit_tracker.py` and `srs.py` both explicitly say "nothing here is stubbed" (deliberately deterministic, no LLM needed).
+
+**One real hit: `agents/learning/content_transform.py`'s module docstring claimed voice note ingestion "IS stubbed... fails closed with an honest reason until that's connected."** Cross-checked against `ARCHITECTURE.md`, which already documents speech-to-text as "RESOLVED 2026-08-10" (real `faster-whisper` transcription, live-verified with genuine speech back then). Checked the actual code rather than trusting either document: `extract_text_from_voice()` already calls the real `transcribe()` in `shared/voice/speech_to_text.py` -- same exact pattern as the Fixera connector docstrings, code moved on, docstring didn't.
+
+**Checked whether the same staleness existed elsewhere, same as the Fixera sweep:** grepped for "speech_to_text"/"voice"/"stub" combinations across the whole repo -- `shared/voice/audio_io.py` carried two more stale references, one calling `speech_to_text.py`'s transcription "a stub" (resolved 2026-08-10) and one calling `text_to_speech.py`'s output "its current stub" (also resolved, real `pyttsx3` synthesis, per `ARCHITECTURE.md`'s own "Text-to-speech is also real now" note).
+
+**Corrected all 3 references, code untouched.** `content_transform.py` and both spots in `audio_io.py` now state plainly that these were stubs when first written, resolved 2026-08-10, corrected here 2026-08-20. Both modules confirmed importing cleanly, `ruff check`/`ruff format --check` clean, and the 10 existing `test_content_transform.py` tests re-ran clean (docstring-only change, no logic touched).
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles

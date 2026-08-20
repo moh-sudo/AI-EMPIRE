@@ -2,9 +2,11 @@
 
 This is genuine, working hardware I/O (records real audio from the
 default input device), deliberately kept separate from
-speech_to_text.py's transcription stub -- recording audio and
-understanding what was said are two different concerns, and only the
-second one needs a model.
+speech_to_text.py's transcription -- recording audio and understanding
+what was said are two different concerns, and only the second one
+needs a model. speech_to_text.py was a stub when this file was first
+written; it's run real faster-whisper transcription since 2026-08-10
+(corrected here 2026-08-20).
 """
 
 import wave
@@ -71,8 +73,9 @@ def list_input_devices() -> list[dict]:
 
 def play_audio(audio_path: str) -> dict:
     """Plays back a WAV file through the default output device --
-    real playback, used once text_to_speech.py produces real audio
-    instead of its current stub."""
+    real playback, used since text_to_speech.py started producing
+    real audio via pyttsx3 (was a stub when this docstring was first
+    written; corrected 2026-08-20)."""
     try:
         with wave.open(audio_path, "rb") as wf:
             data = np.frombuffer(wf.readframes(wf.getnframes()), dtype="int16")
