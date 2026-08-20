@@ -73,6 +73,18 @@ infrastructure with a clearly-labeled synthetic test finding: two real `audit_va
 rows written and confirmed by direct query, and a real Telegram message confirmed
 delivered (`sent: True`) to the Systems bot.
 
+**Gap closed 2026-08-20: `log_clean_exercise()` added.** Every Red Team exercise
+between 2026-08-18 and 2026-08-20 that produced a clean pass (6 of them) had to be
+logged via a direct `write_audit_vault()` call instead of through this module, because
+`receive_finding()` requires a `severity` and a clean pass has no vulnerability to
+classify — flagged repeatedly, finally scoped and closed. `validate_exercise()` reuses
+`REQUIRED_FINDING_FIELDS` minus `severity`; `log_clean_exercise()` writes the exact
+same `audit_vault` action/outcome (`red_team_exercise_completed` /
+`no_vulnerability_found`) every prior manual log already used, so this doesn't rewrite
+history, it just gives future exercises a real function to call. 6 new tests (18 total
+in the file), live-verified the same way as the original build — a real `audit_vault`
+row confirmed by direct query and a real Telegram message confirmed delivered.
+
 ### Can
 
 - Receive a classified finding (Critical/High/Medium/Low, per

@@ -1696,6 +1696,20 @@ Mohamed asked to check other content-ingestion paths for the same vulnerability 
 
 ---
 
+### 2026-08-20, later still -- Blue Team's clean-pass schema gap closed: log_clean_exercise() added
+
+Mohamed picked closing the clean-pass gap next -- flagged repeatedly since 2026-08-18, every one of the 6 clean-pass Red Team exercises run so far had to bypass `blue_team_finding_intake.py` entirely and log via a direct `write_audit_vault()` call, because `receive_finding()` requires a `severity` a clean pass doesn't have.
+
+**Added `validate_exercise()` and `log_clean_exercise()`** to `agents/systems/blue_team_finding_intake.py`. `REQUIRED_EXERCISE_FIELDS = REQUIRED_FINDING_FIELDS - {"severity"}` -- same evidence-preservation schema as a real finding, minus the one field that doesn't apply. `log_clean_exercise()` writes the exact same `audit_vault` action/outcome (`red_team_exercise_completed` / `no_vulnerability_found`) every prior manual log already used, so this doesn't rewrite history -- it just gives future exercises a real function to call instead of hand-rolling the same `write_audit_vault()` call every time.
+
+**6 new tests (18 total in the file, up from 12):** validation accepts a complete exercise with no severity field, fails closed on missing fields, and a structural assertion that `severity` genuinely isn't in `REQUIRED_EXERCISE_FIELDS`; `log_clean_exercise()` rejects incomplete input before any side effect, logs and alerts on valid input, and a DB failure never blocks the Telegram alert -- same fail-safe pattern as everything else in this division. Re-verified clean in a fresh CI-simulation venv.
+
+**Live-verified against real infrastructure, not just mocks:** ran `log_clean_exercise()` with a clearly-labeled synthetic test exercise -- confirmed a real `audit_vault` row by direct query (`id: b905718b-...`, correct action/outcome/metadata) and confirmed the real Telegram alert delivered (`sent: True`).
+
+`blue_team_governance.md`'s Part 2 status updated to record the gap and its closure.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles

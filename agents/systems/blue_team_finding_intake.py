@@ -14,6 +14,14 @@ Both documents' Cannot lists are enforced by omission here: there is
 no apply_fix(), mark_verified(), or run_test() function in this
 file, on purpose. Blue Team receives and proposes; it never applies,
 never self-verifies, and never re-runs the adversarial test itself.
+
+log_clean_exercise() closes a gap noticed 2026-08-18, flagged several
+times, and finally scoped 2026-08-20: receive_finding() requires a
+severity, so every clean-pass Red Team exercise run before this
+function existed (6 of them) was logged via a direct
+write_audit_vault() call instead of going through this module at all.
+Same evidence-preservation fields as a finding, minus severity, since
+a clean pass has no vulnerability to classify.
 """
 
 REQUIRED_FINDING_FIELDS = {
@@ -30,6 +38,8 @@ REQUIRED_FINDING_FIELDS = {
     "authorization_reference",
     "severity",
 }
+
+REQUIRED_EXERCISE_FIELDS = REQUIRED_FINDING_FIELDS - {"severity"}
 
 VALID_SEVERITIES = {"critical", "high", "medium", "low"}
 
@@ -51,6 +61,60 @@ def validate_finding(finding: dict) -> dict:
         }
 
     return {"ok": True}
+
+
+def validate_exercise(exercise: dict) -> dict:
+    """Pure, testable -- same shape as validate_finding() minus the
+    severity check, since a clean-pass exercise has no vulnerability
+    to classify."""
+    missing = REQUIRED_EXERCISE_FIELDS - exercise.keys()
+    if missing:
+        return {"ok": False, "reason": f"missing required field(s): {', '.join(sorted(missing))}"}
+    return {"ok": True}
+
+
+def log_clean_exercise(exercise: dict) -> dict:
+    """Logs a completed Red Team exercise that produced no finding.
+    Same `audit_vault` action/outcome every prior clean-pass exercise
+    already used by hand (red_team_exercise_completed /
+    no_vulnerability_found), so this doesn't change history, it just
+    gives future exercises a real function to call instead of a
+    manual write_audit_vault() invocation."""
+    validation = validate_exercise(exercise)
+    if not validation["ok"]:
+        return validation
+
+    try:
+        from shared.systems_db_connector import write_audit_vault
+
+        write_audit_vault(
+            agent_id="systems-blue-team-finding-intake-v0.1",
+            division="systems",
+            action="red_team_exercise_completed",
+            outcome="no_vulnerability_found",
+            data_classification="INTERNAL",
+            law_reference="Blue Team Governance -- Part 2, Finding Intake (clean-pass path)",
+            metadata={"exercise": exercise},
+        )
+    except Exception:
+        pass  # DB log failure never blocks the Telegram alert below -- same fail-safe pattern as every other sweep in this division
+
+    message = (
+        f"Blue Team: Red Team exercise complete, no finding.\n\n"
+        f"Exercise: {exercise['exercise_id']}\n"
+        f"Target: {exercise['target']}\n"
+        f"Technique: {exercise['technique']}\n"
+        f"Result: {exercise['observed_behavior']}\n\n"
+        "Clean pass -- nothing to remediate."
+    )
+    try:
+        from agents.systems._telegram import send_telegram
+
+        send_telegram(message, token_env="TELEGRAM_SYSTEMS_BOT_TOKEN")
+    except Exception:
+        pass
+
+    return {"ok": True, "exercise": exercise}
 
 
 def receive_finding(finding: dict) -> dict:
