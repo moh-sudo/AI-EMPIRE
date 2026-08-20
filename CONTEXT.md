@@ -1646,6 +1646,20 @@ All 3 (the one real exercise plus both scoping findings) logged to `audit_vault`
 
 ---
 
+### 2026-08-20, later still -- Red Team batch 4: the first real vulnerability found -- SSRF in Learning's URL ingestion, routed through Blue Team for real
+
+Mohamed picked Security Audit's remaining deferred categories (Infrastructure/Identity, Application: XSS/SQLi/CSRF/SSRF). Re-read `security_audit_policy.md` before assuming its 2026-08-03 status was still accurate -- its own reasoning for marking "Application" not-applicable was "doesn't run a public-facing web application." Checked whether that reasoning actually holds rather than trusting a 17-day-old assumption: `agents/learning/content_transform.py`'s `extract_text_from_url()`, reachable via Learning's Telegram `URL:` ingest command, fetches any URL with zero validation -- no scheme check, no block on private/loopback addresses. A non-public-facing system can still have an SSRF-shaped input path if it ingests attacker-influenced URLs, which this one genuinely does.
+
+**Proposed and got approval for Exercise D** (target: `extract_text_from_url()`, technique: fetch an internal address and observe, stop condition: halt immediately after confirming, no further probing). First attempt (`http://127.0.0.1:8007/health-check`) came back "could not fetch" -- ambiguous, since that endpoint is POST-only and the underlying fetch is a GET, so a method mismatch would look identical to a blocked request. Disambiguated properly rather than accepting an ambiguous negative: called `trafilatura.fetch_url()` directly against a GET-compatible internal endpoint (`/openapi.json`). **Real, confirmed SSRF:** it fetched successfully, `downloaded is None: False`, 2630 bytes, the complete real OpenAPI schema of the Systems & Automation server. Stopped immediately per the exercise's own stop condition -- no other internal endpoints probed.
+
+**Classified High** (RoE severity scale: "significant agent/tool privilege abuse" -- a user-facing ingestion feature can reach every internal division-server API, which are only "protected" by an assumption of localhost-only callers that this proves wrong; not Critical since the fetch mechanism itself is GET-only, so it can't directly trigger the POST-only endpoints that take real actions -- information disclosure and internal network reconnaissance, not direct action-triggering, via this specific vector).
+
+**Routed through `blue_team_finding_intake.py` for real -- its first non-clean-pass finding since being built.** `receive_finding()` logged the full evidence record to `audit_vault` (confirmed by direct query, `id: b4d12e51-...`) and alerted Mohamed (confirmed delivered). `propose_remediation()` proposed a standard SSRF fix -- validate the URL's resolved address before fetching, reject private/loopback/link-local ranges (127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16, `::1`, `fc00::/7`) and non-http(s) schemes -- logged (`id: 044afa62-...`) and alerted, `status: "proposed"`, **not applied**. Confirmed this is the only call site in the repo that fetches a user-supplied URL, so the fix scope is narrow.
+
+Running total: 6 Red Team exercises, 2 scoping gaps, **1 real vulnerability found** (High, proposed not fixed).
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
