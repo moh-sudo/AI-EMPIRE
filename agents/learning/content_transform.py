@@ -15,11 +15,41 @@ own choice) -- fails closed with an honest reason until that's
 connected, same as everywhere else voice is used.
 """
 
+import ipaddress
 import re
+import socket
+from urllib.parse import urlparse
+
+
+def _is_safe_url(url: str) -> bool:
+    """SSRF guard -- rejects anything but http(s), and any URL whose
+    hostname resolves to a private/loopback/link-local/reserved/
+    multicast address. Added 2026-08-20 after a Red Team exercise
+    confirmed extract_text_from_url() had zero validation and could
+    reach internal-only endpoints (e.g. 127.0.0.1:8007/openapi.json)
+    via this division's own Telegram URL: ingest command."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return False
+    try:
+        resolved = socket.getaddrinfo(parsed.hostname, None)
+    except socket.gaierror:
+        return False
+    for _family, _type, _proto, _canonname, sockaddr in resolved:
+        ip = ipaddress.ip_address(sockaddr[0])
+        if ip.is_private or ip.is_reserved or ip.is_multicast:
+            return False
+    return True
 
 
 def extract_text_from_url(url: str) -> dict:
     import trafilatura
+
+    if not _is_safe_url(url):
+        return {
+            "ok": False,
+            "reason": f"Refused to fetch {url}: unsupported scheme or resolves to a private/internal address.",
+        }
 
     try:
         downloaded = trafilatura.fetch_url(url)

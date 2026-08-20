@@ -1660,6 +1660,18 @@ Running total: 6 Red Team exercises, 2 scoping gaps, **1 real vulnerability foun
 
 ---
 
+### 2026-08-20, later still -- the SSRF fix applied, per Mohamed's explicit approval
+
+Mohamed approved applying `propose_remediation()`'s proposed fix. Added `_is_safe_url()` to `agents/learning/content_transform.py`: rejects any non-http(s) scheme, resolves the hostname via `socket.getaddrinfo()`, and rejects the request if *any* resolved address is `is_private`, `is_reserved`, or `is_multicast` (Python's `ipaddress.is_private` already covers loopback, link-local, and RFC1918 ranges in one check) -- checking every resolved address rather than just the first blocks a DNS-rebinding-shaped bypass where a hostname resolves to both a safe and an unsafe address. `extract_text_from_url()` now calls this before ever touching `trafilatura.fetch_url()`.
+
+**10 tests added** (`tests/test_content_transform.py`, no prior test file existed for this module): scheme rejection, missing hostname, unresolvable hostname, loopback, RFC1918 private ranges, link-local/cloud-metadata addresses, mixed-resolution rejection, a genuine public address passing, and both `extract_text_from_url()` paths (refused before touching `trafilatura`, still works for a safe URL) -- `trafilatura` itself faked via `sys.modules` patching since it's a local import, not a module-level one. Re-verified clean in a fresh CI-simulation venv.
+
+**Live-verified against real infrastructure, not just mocks:** re-ran the exact exploit that worked before the fix (`extract_text_from_url("http://127.0.0.1:8007/openapi.json")`) -- now correctly refused (`"Refused to fetch ... resolves to a private/internal address"`). Confirmed the fix doesn't break legitimate use: fetched a real public URL (`https://en.wikipedia.org/wiki/Photosynthesis`) and got back 79,932 real characters of article text, same as before the fix.
+
+Per Blue Team's own governance, this is as far as Blue Team's role goes -- it proposed and (with Mohamed's explicit approval) the fix was applied, but Blue Team does not mark its own remediation verified. That's QA/Security Verification, then Audit, independently -- not done as part of this fix, a real next step if Mohamed wants the loop formally closed rather than just fixed.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
