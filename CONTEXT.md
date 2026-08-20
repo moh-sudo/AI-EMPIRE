@@ -1805,6 +1805,20 @@ After the third IP change of the day, Mohamed asked to actually fix the recurrin
 
 ---
 
+### 2026-08-20, later still -- "let's finish everything": a full governance sweep found systems_automation_governance.md significantly stale
+
+Mohamed asked to keep going rather than stop with the standing list clear. Checked Systems & Automation's and Audit & Verification's own agent files for the same stub-marker class of issue found in the 4 divisions -- clean; both have been the most actively maintained code all session, as expected.
+
+**A different, bigger check paid off: read `systems_automation_governance.md` in full rather than assuming a governance doc stays accurate once written.** Five pillar sections' own escalation lines still said "not yet built" or "is the next step" -- Host Security Scanning, Architecture & Platform Assurance, CI Health Monitoring, the Cybersecurity Practice Lab, and Resource Monitoring -- despite all 5 being genuinely built, live-verified, and (for most of them) actively running in production for days to weeks. Verified each against real file existence (`agents/systems/*.py`, 184-319 lines each, not stubs) before touching anything.
+
+**A bigger, more substantive staleness turned up in Rule 1 itself.** Its status note still described the original `ai_empire_systems_agent` Postgres-role approach as blocked and `reliability_monitor.py` as running on the blanket `service_role` key. Re-read `shared/systems_db_connector.py`'s actual code rather than trusting the governance doc's own claim: it wraps `shared/scoped_db.py`'s REST+JWT `get_scoped_client("systems_agent")`, a different mechanism that replaced the blocked one entirely -- and every real write this division has made all session (confirmed by direct observation, not inference) has gone through this scoped path. The doc had simply never been updated after the real fix landed.
+
+**Caught a mistake in my own correction before it shipped.** First draft claimed Integration & APIs was the one pillar with no agent yet -- checked before asserting it (the same discipline the whole sweep was about) and found it's wrong: the TradingView webhook (`infrastructure/tradingview_webhook/`) was confirmed live 2026-08-11, complete with a real secret-exposure bug found and fixed the same day. Fixed the draft before committing rather than trading one stale claim for a new one.
+
+Also corrected `ARCHITECTURE.md`'s Systems & Automation table row, which referenced `infrastructure/n8n/systems-host-security-scan-scheduled.json` -- a file deleted 2026-08-18 when that schedule moved to a login trigger -- and was missing several pillars built since. One claim double-checked and left alone because it turned out to still be accurate: Resource Monitoring's n8n workflow really is still "pending Mohamed's import" -- confirmed directly against n8n's own database, no workflow named `resource` exists there at all.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
