@@ -52,11 +52,24 @@ def remove_watchtower(topic: str) -> dict:
 
 def check_one_watchtower(watchtower: dict, max_results: int = 5) -> dict:
     """Re-searches a single watchtower's topic, compares against
-    seen_urls, and returns any genuinely new results. Never raises."""
+    seen_urls, and returns any genuinely new results. Never raises.
+    Every attempt logged to memory_experience -- same principle as
+    research.py's research_topic(), added 2026-08-20 after finding
+    this function (and check_all_watchtowers() below) had zero audit
+    trail despite genuinely working."""
+    from agents.rii._memory_helpers import safe_add_experience
     from agents.rii.research import web_search
 
     search = web_search(watchtower["topic"], max_results=max_results)
     if not search.get("ok"):
+        safe_add_experience(
+            division="rii",
+            agent_id="rii-watchtower-v0.1",
+            event_type="watchtower_check_attempted",
+            context=watchtower["topic"],
+            outcome="search_failed",
+            metadata={"watchtower_id": watchtower["id"], "reason": search["reason"]},
+        )
         return {"ok": False, "reason": search["reason"]}
 
     seen = set(watchtower.get("seen_urls") or [])
@@ -72,6 +85,15 @@ def check_one_watchtower(watchtower: dict, max_results: int = 5) -> dict:
         }
     ).eq("id", watchtower["id"]).execute()
 
+    safe_add_experience(
+        division="rii",
+        agent_id="rii-watchtower-v0.1",
+        event_type="watchtower_check_attempted",
+        context=watchtower["topic"],
+        outcome="ok",
+        metadata={"watchtower_id": watchtower["id"], "new_results_count": len(new_results)},
+    )
+
     return {"ok": True, "new_results": new_results}
 
 
@@ -79,7 +101,12 @@ def check_all_watchtowers() -> dict:
     """Live entry point -- checks every active watchtower, sends one
     Telegram alert per watchtower with new results (skips ones with
     nothing new, doesn't spam). Each watchtower isolated in its own
-    try/except -- one failing can't block the others."""
+    try/except -- one failing can't block the others, and the failure
+    itself is now logged rather than silently swallowed (found live
+    2026-08-20: this handler had zero trace of a crash -- the only
+    thing that could actually raise here, the rii_watchtowers update
+    inside check_one_watchtower(), left no record at all if it did)."""
+    from agents.rii._memory_helpers import safe_add_experience
     from agents.rii._telegram import send_telegram
 
     watchtowers = list_watchtowers()
@@ -89,7 +116,15 @@ def check_all_watchtowers() -> dict:
     for wt in watchtowers:
         try:
             result = check_one_watchtower(wt)
-        except Exception:
+        except Exception as e:
+            safe_add_experience(
+                division="rii",
+                agent_id="rii-watchtower-v0.1",
+                event_type="watchtower_check_attempted",
+                context=wt.get("topic", "unknown"),
+                outcome="crashed",
+                metadata={"watchtower_id": wt.get("id"), "reason": str(e)},
+            )
             continue
         checked += 1
         if not result.get("ok") or not result.get("new_results"):

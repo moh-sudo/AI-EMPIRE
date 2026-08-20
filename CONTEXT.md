@@ -1769,6 +1769,16 @@ Mohamed asked to check RII next. No stub/TODO markers found (unlike Fixera/Perso
 
 ---
 
+### 2026-08-20, later still -- watchtower.py's silent-failure gap closed
+
+Mohamed approved fixing it. Added logging to both functions in `agents/rii/watchtower.py`, matching `research.py`'s exact pattern: `check_one_watchtower()` now logs `search_failed` (before) and `ok` with a `new_results_count` (after) via `safe_add_experience`; `check_all_watchtowers()`'s previously-bare `except Exception: continue` now logs a `crashed` outcome with the real exception message before continuing -- the one thing that could actually raise there (the `rii_watchtowers` update inside `check_one_watchtower()`) now leaves a real trace if it ever does.
+
+**5 new tests** (`tests/test_watchtower.py`, no prior test file existed): search-failure logging, success logging with the right metadata, the crash-logging path (confirms a real exception message reaches `memory_experience` instead of vanishing), and both alert-sending paths (fires only when there are genuinely new results, stays silent otherwise). All 5 pass; `ruff check`/`ruff format --check` clean.
+
+**Live-verified against the real watchtower, not just mocks:** ran `check_all_watchtowers()` for real -- `{"checked": 1, "alerts_sent": 0}` (no new results since this morning's 08:00 check, expected) -- and confirmed a real `memory_experience` row landed with the correct `watchtower_id` and `new_results_count: 0`. The gap is genuinely closed now, not just theoretically.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
