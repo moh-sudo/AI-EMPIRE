@@ -1751,6 +1751,24 @@ Mohamed picked a different division again. Chose Personal & Education. Same disc
 
 ---
 
+### 2026-08-20, later still -- RII checked: watchtower.py genuinely works but logs nothing; a real router change broke and then fixed Ollama mid-investigation
+
+Mohamed asked to check RII next. No stub/TODO markers found (unlike Fixera/Personal & Education) -- but a real `audit_vault` query for `division: rii` came back with zero rows ever. Checked before assuming that meant anything was broken: RII logs to `memory_experience` instead (`safe_add_experience`, its own scoped table), same pattern several other divisions use for routine activity -- not a gap.
+
+**Real gap found: `agents/rii/watchtower.py` has zero logging calls anywhere in the file** -- no `safe_add_experience`, no `write_audit_vault`, nothing. `check_all_watchtowers()`'s per-watchtower exception handler (`except Exception: continue`) silently swallows any failure with no record at all, unlike every other agent in this project, which logs failures even when failing safe. Checked whether this meant watchtowers were actually broken, not just unaudited: n8n's own `execution_entity` showed `rii-watchtower-scheduled` genuinely firing (3 real executions, most recent that same morning at 08:00 UTC, all `success`), and `list_watchtowers()` showed one real, live watchtower ("AI Empire University curriculum trends," created 2026-08-05) with `last_checked_at` matching the n8n execution exactly and 21 real accumulated `seen_urls` -- genuinely working, just invisible to anything checking `memory_experience`.
+
+**Checked whether Research (separate from Watchtowers) being quiet since 2026-08-05 in `memory_experience` was a bug:** it isn't -- `agents/rii/telegram_listener.py` confirms Research is purely on-demand (`RESEARCH <question>` Telegram command), not scheduled, so no activity since 08-05 just means nobody's asked it anything, not that it's broken.
+
+**But two of the three 08-05 research attempts had genuinely failed** (`search_failed`, `synthesis_failed`), so tested `research_topic()` live to see if it currently works. **It reproduced the exact same failure live:** Ollama synthesis timed out after 60s. Checked connectivity directly -- `192.168.100.21` (yesterday's corrected IP) came back "Destination host unreachable" from this machine's own gateway, a real, current outage, not a slow-link false negative this time. Reported it to Mohamed rather than guessing further, since Ollama is out-of-reach/detection-only from this laptop per Rule 3.
+
+**Mohamed explained: the WiFi router was changed, new IP ends in `.33`.** Checked this laptop's own current subnet first rather than guessing the full address (`ipconfig` -- still `192.168.100.x`, so `.33` meant `192.168.100.33`). Verified before touching anything: `ping` (5-52ms, much better than the old router's 385-1186ms) and a direct `curl` to `/api/tags` (`200`, `0.135768s` -- dramatically faster than the ~20s round-trips measured against the old router yesterday). Updated `.env`. Re-ran `research_topic()` fresh: fully real, cited answer synthesized from real Tavily search results.
+
+**Restarted the 4 already-running servers that still had the stale IP baked into their process memory** (forex, learning, rii, systems -- the same lesson from 2026-08-19's Ollama timeout fix, env var changes don't reach an already-running process) rather than waiting for the next scheduled sweep to rediscover the same problem. All 4 confirmed back up; a real `run_health_check_sweep()` confirmed `ollama` flipped `fallback -> healthy` and all 10 tracked services genuinely healthy.
+
+**Still open, not yet fixed:** `watchtower.py`'s silent-failure gap -- flagged to Mohamed, not yet actioned.
+
+---
+
 ## Operational Efficiency Standard (v1.0)
 **Owner:** Systems & Automation Division (Reliability & Monitoring Agent)
 **Placement:** Systems & Automation Division Operational Standard — NOT Enterprise Principles
