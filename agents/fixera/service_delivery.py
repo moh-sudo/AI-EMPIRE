@@ -1,10 +1,14 @@
 """Service Delivery Agent v0.1 — Fixera Division.
 
-Booking lifecycle + dispatch. Built against mock data matching the
-ai_empire_bookings_summary / ai_empire_workers_summary view schemas
-documented in infrastructure/fixera_connector_reference.sql, since the
-live connector isn't working yet (see CONTEXT.md Session Log,
-2026-07-23). Ready to plug into real data once the connector is fixed.
+Booking lifecycle + dispatch, against the ai_empire_bookings_summary /
+ai_empire_workers_summary views via shared/fixera_connector.py. Built
+originally against mock data matching those schemas while the live
+connector wasn't working yet (see CONTEXT.md Session Log, 2026-07-23);
+the connector was fixed since then and run_dispatch_sweep() has been
+calling it for real data all along -- corrected 2026-08-20 after
+live-verifying the connector actually works (a real row pulled from
+ai_empire_bookings_summary) and confirming this file's own code had
+already moved past the mock-data stage the docstring still described.
 
 Dispatch logic matches Fixera's own roadmap note: "Phase 1 uses flat
 pool with wallet gate" -- the fuller multi-factor Dispatch Decision

@@ -1,9 +1,12 @@
 """Marketplace Intelligence Agent v0.1 — Fixera Division.
 
 Strategic improvement: demand patterns, partner utilization, pricing
-signals, bottleneck detection. Built against mock data matching
-ai_empire_bookings_summary / ai_empire_workers_summary (connector
-still unresolved -- see CONTEXT.md).
+signals, bottleneck detection, against ai_empire_bookings_summary /
+ai_empire_workers_summary via shared/fixera_connector.py. Built
+originally against mock data while the connector was unresolved (see
+CONTEXT.md); the connector was fixed since then and this file's own
+code already calls it for real data -- docstring corrected 2026-08-20
+after live-verifying the connector actually works.
 
 Operates in Research Mode by default per its own Boundaries: read-only
 analysis, output is recommendations only, never autonomous pricing or

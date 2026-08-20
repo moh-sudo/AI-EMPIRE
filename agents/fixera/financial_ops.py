@@ -1,15 +1,18 @@
 """Financial Operations Agent v0.1 — Fixera Division.
 
-Movement of money: commissions, refunds, wallet management. Built
-against mock data matching ai_empire_payments_summary (connector still
-unresolved -- see CONTEXT.md). M-Pesa Daraja integration is explicitly
-blocked in CONTEXT.md until company registration completes, so this
-agent's v0.1 scope is the *decision* only -- classifying a transaction
-per the Escalation Ladder (Track 1 -- Financial). It never executes a
-payment itself: the Approval Matrix is explicit that "Execute payment"
-is AI Agent: No, Mohamed: Yes. Auto-processing below-threshold
-transactions means clearing them for someone/something else to
-execute, not executing them directly.
+Movement of money: commissions, refunds, wallet management, against
+ai_empire_payments_summary via shared/fixera_connector.py. Built
+originally against mock data while the connector was unresolved (see
+CONTEXT.md); the connector was fixed since then and this file's own
+code already calls it for real data -- docstring corrected 2026-08-20
+after live-verifying the connector actually works. M-Pesa Daraja
+integration is explicitly blocked in CONTEXT.md until company
+registration completes, so this agent's v0.1 scope is the *decision*
+only -- classifying a transaction per the Escalation Ladder (Track 1 --
+Financial). It never executes a payment itself: the Approval Matrix is
+explicit that "Execute payment" is AI Agent: No, Mohamed: Yes.
+Auto-processing below-threshold transactions means clearing them for
+someone/something else to execute, not executing them directly.
 """
 
 from dataclasses import dataclass

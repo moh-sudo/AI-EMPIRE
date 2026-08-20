@@ -1,9 +1,13 @@
 """Trust & Safety Agent v0.1 — Fixera Division.
 
 Marketplace integrity: dispute triage, review-pattern fraud detection,
-partner KYC re-verification scheduling. Built against mock data
-matching ai_empire_disputes_summary / ai_empire_reviews_summary
-(connector still unresolved -- see CONTEXT.md).
+partner KYC re-verification scheduling, against
+ai_empire_disputes_summary / ai_empire_reviews_summary via
+shared/fixera_connector.py. Built originally against mock data while
+the connector was unresolved (see CONTEXT.md); the connector was fixed
+since then and this file's own code already calls it for real data --
+docstring corrected 2026-08-20 after live-verifying the connector
+actually works.
 
 This agent may NEVER unilaterally ban/suspend/penalize (per its own
 Boundaries in shared/prompts/fixera_trust-safety_v1.json) -- v0.1
