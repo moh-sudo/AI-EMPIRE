@@ -1777,6 +1777,8 @@ Mohamed approved fixing it. Added logging to both functions in `agents/rii/watch
 
 **Live-verified against the real watchtower, not just mocks:** ran `check_all_watchtowers()` for real -- `{"checked": 1, "alerts_sent": 0}` (no new results since this morning's 08:00 check, expected) -- and confirmed a real `memory_experience` row landed with the correct `watchtower_id` and `new_results_count: 0`. The gap is genuinely closed now, not just theoretically.
 
+**A real CI break followed immediately, same class of gap as `psutil` back on 2026-08-18.** `test_watchtower.py` became the first test file anywhere in the suite to actually import `agents/rii/_memory_helpers.py`'s module chain (via `patch("agents.rii._memory_helpers.safe_add_experience")`, which still requires importing the module to resolve the patch target) -- and every division's `_memory_helpers.py` does `from openai import APIError` at module level, which CI's minimal install (`requirements-dev.txt requests supabase pyjwt psutil`) never included. Passed locally (full `requirements.txt` installed), failed in CI. This system was itself back at 100% CPU / ~476MB free while diagnosing this -- several background checks stalled or silently produced no output for minutes, not because anything was actually broken, just genuinely starved for CPU time; waited them out rather than assuming failure. Fixed by adding `openai` to `.github/workflows/ci.yml`'s install line, matching the exact same remediation shape as the `psutil` fix; re-verified in a fresh CI-simulation venv before pushing -- all 159 tests pass. Real CI confirmed green afterward (`7ef7669`).
+
 ---
 
 ## Operational Efficiency Standard (v1.0)
