@@ -22,24 +22,50 @@ export class EnergyPaths {
 
     const structural = points.filter((p) => !p.isAmbient);
 
+    // Real bug found from a live screenshot: the old midpoint was the
+    // straight a-b line's center plus a small random jitter (+-0.15) --
+    // for genuinely far-apart points (>0.55 apart in a ~1-2 unit volume),
+    // that jitter is tiny relative to the distance, so the curve barely
+    // deviated from a straight line and several paths visibly cut across
+    // empty exterior space like stray scratches, disconnected from the
+    // particle mass. Fixed by snapping each intermediate control point to
+    // the NEAREST REAL structural particle to that interpolated position,
+    // so the curve actually threads through real density the whole way,
+    // matching this class's own original intent (see the file comment).
+    const nearestTo = (pos) => {
+      let best = null,
+        bestD = Infinity;
+      for (const p of structural) {
+        const d = pos.distanceToSquared(p.target);
+        if (d < bestD) {
+          bestD = d;
+          best = p;
+        }
+      }
+      return best;
+    };
+
     for (let i = 0; i < PATH_COUNT; i++) {
       const a = structural[Math.floor(Math.random() * structural.length)];
-      // find a point reasonably far from `a` to make a real long pathway,
-      // not two neighbors that happen to get picked
+      // a point reasonably far from `a` but not the most extreme outlier
+      // in the whole volume, so paths stay plausible rather than reaching
+      // corner-to-corner across the structure
       let b = a;
       for (let tries = 0; tries < 20; tries++) {
         const candidate = structural[Math.floor(Math.random() * structural.length)];
-        if (candidate.target.distanceTo(a.target) > 0.55) {
+        const d = candidate.target.distanceTo(a.target);
+        if (d > 0.5 && d < 1.0) {
           b = candidate;
           break;
         }
       }
-      const mid = a.target.clone().lerp(b.target, 0.5);
-      mid.x += (Math.random() - 0.5) * 0.15;
-      mid.y += (Math.random() - 0.5) * 0.1;
-      mid.z += (Math.random() - 0.5) * 0.15;
 
-      const curve = new THREE.CatmullRomCurve3([a.target.clone(), mid, b.target.clone()]);
+      const rawMid1 = a.target.clone().lerp(b.target, 0.33);
+      const rawMid2 = a.target.clone().lerp(b.target, 0.66);
+      const mid1 = nearestTo(rawMid1).target;
+      const mid2 = nearestTo(rawMid2).target;
+
+      const curve = new THREE.CatmullRomCurve3([a.target.clone(), mid1.clone(), mid2.clone(), b.target.clone()]);
       this.curves.push({ curve, colorA: this._colorAt(a.index, colors), colorB: this._colorAt(b.index, colors) });
       this.pulseSpeeds.push(0.08 + Math.random() * 0.1);
     }

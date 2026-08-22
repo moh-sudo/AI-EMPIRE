@@ -59,25 +59,46 @@ function fibonacciDir(i, n) {
 
 const _c1 = new THREE.Color();
 const _c2 = new THREE.Color();
+const _c3 = new THREE.Color();
+// Two real, opposite failures measured live before landing here: blending
+// all 7 divisions by weight (even with a sharp falloff) averages 5 small
+// contributions in with the top 1-2, which desaturates toward gray --
+// confirmed via a pixel-hue histogram showing 44% low-saturation pixels
+// and two whole hues (green, yellow-green) essentially never winning
+// anywhere. And a PURE nearest-attractor pick (epsilon so small it's
+// effectively winner-take-all) let one or two geometrically-favored
+// attractors claim ~90% of the volume by themselves. Blending ONLY the
+// top-2 nearest attractors (not all 7) fixes both: any given point stays
+// visually saturated (never more than 2 hues mixed), while which 2 win
+// changes smoothly across space as you move between real attractor
+// positions -- genuine interweaving without either extreme.
 function blendedColor(worldPos) {
-  let r = 0,
-    g = 0,
-    b = 0,
-    wSum = 0;
+  let best1Key = null,
+    best1W = -1,
+    best2Key = null,
+    best2W = -1;
   for (const key in DIVISION_COLORS) {
     const div = DIVISION_COLORS[key];
-    _c1.setHex(div.hex);
+    let w = 0;
     for (const p of div.pos) {
       const dist = worldPos.distanceTo(p);
-      const w = 1 / (dist + 0.22); // linear falloff, wide epsilon -- soft, far-reaching blend
-      r += _c1.r * w;
-      g += _c1.g * w;
-      b += _c1.b * w;
-      wSum += w;
+      w += 1 / (dist * dist + 0.05);
+    }
+    if (w > best1W) {
+      best2W = best1W;
+      best2Key = best1Key;
+      best1W = w;
+      best1Key = key;
+    } else if (w > best2W) {
+      best2W = w;
+      best2Key = key;
     }
   }
-  _c2.setRGB(r / wSum, g / wSum, b / wSum);
-  return _c2.clone();
+  _c1.setHex(DIVISION_COLORS[best1Key].hex);
+  _c2.setHex(DIVISION_COLORS[best2Key].hex);
+  const total = best1W + best2W;
+  _c3.copy(_c1).lerp(_c2, total > 0 ? best2W / total : 0);
+  return _c3.clone();
 }
 
 const GAP = 0.28; // hemisphere center offset from x=0

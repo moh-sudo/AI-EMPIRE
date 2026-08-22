@@ -140,7 +140,17 @@
   .left-column {
     position: absolute;
     left: 28px;
-    top: 106px;
+    /* Real bug found from TWO separate live screenshots at real viewport
+       widths: a hardcoded top offset (106px) assumed a specific rendered
+       header height, but "EMPIRE BRAIN"'s actual height varies with real
+       font metrics/viewport -- when it ran taller than assumed, this card
+       column rendered on top of the header's own subtitle line. A fixed
+       px guess can't account for real, variable rendered text height; the
+       JS at the bottom of this file measures .header's actual bounding
+       box after render and sets --left-col-top from that directly. 106px
+       stays only as a fallback before that JS runs (or if it's ever
+       disabled), not as the source of truth. */
+    top: var(--left-col-top, 106px);
     bottom: 48px;
     z-index: 5;
     width: 220px;
@@ -359,6 +369,30 @@
 
 <script>
 (function () {
+  // Measures .header's REAL rendered bottom edge and sets --left-col-top
+  // from it directly, instead of a hardcoded px guess -- the fix for a bug
+  // that recurred twice: "EMPIRE BRAIN"'s actual rendered height varies
+  // with real font metrics and viewport width, and a fixed constant kept
+  // being wrong at some real viewport, letting the card column render on
+  // top of the header's subtitle line. Re-measures on resize (header
+  // wrapping can change) and once webfonts finish loading (Syne's real
+  // metrics differ from the fallback sans-serif used before it loads,
+  // which changes the header's rendered height).
+  function positionLeftColumn() {
+    var panel = document.getElementById('panel');
+    var header = document.querySelector('.header');
+    if (!panel || !header) return;
+    var panelRect = panel.getBoundingClientRect();
+    var headerRect = header.getBoundingClientRect();
+    var top = Math.round(headerRect.bottom - panelRect.top) + 14;
+    panel.style.setProperty('--left-col-top', top + 'px');
+  }
+  positionLeftColumn();
+  window.addEventListener('resize', positionLeftColumn);
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(positionLeftColumn);
+  }
+
   var STAR = 'M12 2 L14.5 8.2 L21 9 L16 13.4 L17.5 20 L12 16.6 L6.5 20 L8 13.4 L3 9 L9.5 8.2 Z';
   // key matches shared/systems_db_connector.py's get_empire_status()
   // division keys exactly -- real backend state is looked up by this,
