@@ -29,6 +29,7 @@ export class NeuralNetwork {
     const lineColors = [];
     const lineStarts = [];
     const lineDurations = [];
+    const lineWeights = [];
     const seenPairs = new Set();
     const tmp = new THREE.Vector3();
 
@@ -49,7 +50,14 @@ export class NeuralNetwork {
         }
       }
       candidates.sort((a, b) => a[0] - b[0]);
+      // Real hierarchy instead of every connection carrying equal weight:
+      // the nearest neighbor is always a faint "micro" filament; the
+      // second-nearest is only kept ~30% of the time and rendered as a
+      // brighter "medium" pathway when it is -- sparse and organically
+      // distributed, not a uniform grid of identical lines.
       for (let k = 0; k < Math.min(LINKS_PER_NODE, candidates.length); k++) {
+        const isMedium = k === 1;
+        if (isMedium && Math.random() > 0.3) continue;
         const other = candidates[k][1];
         const key = pt.index < other.index ? `${pt.index}_${other.index}` : `${other.index}_${pt.index}`;
         if (seenPairs.has(key)) continue;
@@ -68,6 +76,8 @@ export class NeuralNetwork {
         const dur = Math.max(durations[pt.index], durations[other.index]);
         lineStarts.push(start, start);
         lineDurations.push(dur, dur);
+        const weight = isMedium ? 1.0 : 0.4;
+        lineWeights.push(weight, weight);
       }
     }
 
@@ -76,6 +86,7 @@ export class NeuralNetwork {
     geometry.setAttribute("aColor", new THREE.BufferAttribute(new Float32Array(lineColors), 3));
     geometry.setAttribute("aLineStart", new THREE.BufferAttribute(new Float32Array(lineStarts), 1));
     geometry.setAttribute("aLineDuration", new THREE.BufferAttribute(new Float32Array(lineDurations), 1));
+    geometry.setAttribute("aWeight", new THREE.BufferAttribute(new Float32Array(lineWeights), 1));
 
     this.uniforms = { uFormProgress: { value: 0 }, uOpacity: { value: 0.35 } };
     const material = new THREE.ShaderMaterial({

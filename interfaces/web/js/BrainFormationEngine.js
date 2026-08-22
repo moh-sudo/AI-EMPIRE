@@ -12,26 +12,41 @@
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js";
 
-// Division color palette -- spatially mixed via inverse-distance blending
-// from fixed attractor points scattered through the volume, NOT vertical
-// bands. Matches shared/systems_db_connector.py's division keys where one
-// exists; 'orchestrator' anchors the brainstem/core since it's the routing
-// layer, not a hemisphere region.
+// Division color palette. Real feedback from the first render: one
+// attractor per division with an inverse-SQUARE falloff let the nearest
+// attractor dominate its whole local region almost exclusively (gold
+// reading as a solid, separate "bottom zone" instead of interweaving) --
+// exactly the "compartmentalized" look that was flagged. Fixed two ways:
+// each division now has 2-3 satellite points scattered at different
+// places in the volume (so no single color owns one contiguous region),
+// and the falloff is linear with a much larger epsilon (softer, wider
+// reach per point) instead of inverse-square.
 export const DIVISION_COLORS = {
-  rii: { hex: 0x36e0ff, pos: new THREE.Vector3(-0.32, 0.28, 0.32) }, // cyan / electric blue
-  learning: { hex: 0xc060ff, pos: new THREE.Vector3(0.34, 0.32, -0.28) }, // violet / magenta
-  fixera: { hex: 0xff9b30, pos: new THREE.Vector3(-0.38, -0.18, -0.22) }, // amber / orange
-  forex: { hex: 0x33e08a, pos: new THREE.Vector3(0.4, -0.16, 0.26) }, // emerald / green
-  systems: { hex: 0x4ea3ff, pos: new THREE.Vector3(0.0, 0.42, 0.05) }, // blue / cyan
-  audit: { hex: 0x8b5cf6, pos: new THREE.Vector3(0.02, 0.1, -0.4) }, // purple
-  orchestrator: { hex: 0xffc24b, pos: new THREE.Vector3(0.0, -0.55, 0.0) }, // gold, brainstem core
+  rii: { hex: 0x36e0ff, pos: [new THREE.Vector3(-0.32, 0.3, 0.32), new THREE.Vector3(0.25, -0.15, 0.35)] },
+  learning: { hex: 0xc060ff, pos: [new THREE.Vector3(0.34, 0.35, -0.28), new THREE.Vector3(-0.2, -0.3, -0.15)] },
+  fixera: { hex: 0xff9b30, pos: [new THREE.Vector3(-0.38, -0.15, -0.22), new THREE.Vector3(0.15, 0.4, -0.1)] },
+  forex: { hex: 0x33e08a, pos: [new THREE.Vector3(0.4, -0.12, 0.26), new THREE.Vector3(-0.3, 0.2, 0.15)] },
+  systems: { hex: 0x4ea3ff, pos: [new THREE.Vector3(0.0, 0.45, 0.08), new THREE.Vector3(0.3, -0.35, -0.2)] },
+  audit: { hex: 0x8b5cf6, pos: [new THREE.Vector3(0.02, 0.12, -0.42), new THREE.Vector3(-0.15, -0.5, 0.1)] },
+  orchestrator: {
+    hex: 0xffc24b,
+    // still weighted toward the brainstem/core (it's the routing layer),
+    // but with satellites reaching up into both hemispheres so gold
+    // threads through the whole structure, not just the trunk
+    pos: [new THREE.Vector3(0.0, -0.55, 0.0), new THREE.Vector3(-0.15, 0.15, 0.05), new THREE.Vector3(0.18, 0.1, -0.05)],
+  },
 };
 
+// Two octaves for broad gyrus bumps, a third, higher-frequency one for
+// finer wrinkle detail -- amplitude raised from the first pass (0.22 max
+// combined) since the folds read as barely-there density noise rather
+// than visible ridges next to the reference.
 function gyrus(d) {
   return (
-    0.1 * Math.sin(d.x * 8 + 1.7) * Math.cos(d.y * 10 + 0.4) +
-    0.07 * Math.sin(d.y * 13 + 2.3) * Math.sin(d.z * 9 + 1.1) +
-    0.05 * Math.cos(d.x * 6) * Math.sin(d.z * 14 + 0.9)
+    0.16 * Math.sin(d.x * 8 + 1.7) * Math.cos(d.y * 10 + 0.4) +
+    0.11 * Math.sin(d.y * 13 + 2.3) * Math.sin(d.z * 9 + 1.1) +
+    0.09 * Math.cos(d.x * 6) * Math.sin(d.z * 14 + 0.9) +
+    0.06 * Math.sin(d.x * 21 + d.z * 17 + 3.1) * Math.cos(d.y * 19 + 1.4)
   );
 }
 
@@ -51,22 +66,24 @@ function blendedColor(worldPos) {
     wSum = 0;
   for (const key in DIVISION_COLORS) {
     const div = DIVISION_COLORS[key];
-    const dist = worldPos.distanceTo(div.pos);
-    const w = 1 / (dist * dist + 0.03);
     _c1.setHex(div.hex);
-    r += _c1.r * w;
-    g += _c1.g * w;
-    b += _c1.b * w;
-    wSum += w;
+    for (const p of div.pos) {
+      const dist = worldPos.distanceTo(p);
+      const w = 1 / (dist + 0.22); // linear falloff, wide epsilon -- soft, far-reaching blend
+      r += _c1.r * w;
+      g += _c1.g * w;
+      b += _c1.b * w;
+      wSum += w;
+    }
   }
   _c2.setRGB(r / wSum, g / wSum, b / wSum);
   return _c2.clone();
 }
 
-const GAP = 0.3; // hemisphere center offset from x=0
-const SEMI = { x: 0.58, y: 0.52, z: 0.5 };
-const GROOVE = 0.1; // half-width of the enforced central fissure
-const GROOVE_MIN_Y = 0.05; // fissure only enforced above this world y
+const GAP = 0.28; // hemisphere center offset from x=0
+const SEMI = { x: 0.56, y: 0.58, z: 0.5 }; // taller (y raised) -- a real screenshot showed the cortex reading flat/funnel-like, not domed
+const GROOVE = 0.12; // half-width of the enforced central fissure
+const GROOVE_MIN_Y = -0.25; // fissure enforced over a much taller band -- was only near the very top, barely visible
 
 export class BrainFormationEngine {
   constructor({ hemisphereCount = 7000, brainstemCount = 1400, ambientCount = 500 } = {}) {
@@ -109,8 +126,17 @@ export class BrainFormationEngine {
       for (let i = 0; i < perHemisphere; i++) {
         const d = fibonacciDir(i, perHemisphere);
         const g = 1 + gyrus(d);
+        // Real shape bug found from a live screenshot: tapering the whole
+        // bottom HALF (d.y<0) down to 0.5 width made the hemisphere and the
+        // brainstem below it blend into one continuous, monotonic taper --
+        // reading as a funnel/cone, not "round cortex sitting above a
+        // distinct narrow stem". Fixed by keeping the hemisphere round and
+        // full through most of its lower half, and only pinching sharply
+        // in the last stretch near its true bottom -- a real "neck" the
+        // brainstem's own separate, much-smaller top radius then continues
+        // from, instead of a smooth continuous cone.
         let bottomTaper = 1.0;
-        if (d.y < 0) bottomTaper = THREE.MathUtils.lerp(1.0, 0.5, THREE.MathUtils.smoothstep(-d.y, 0, 1));
+        if (d.y < -0.55) bottomTaper = THREE.MathUtils.lerp(1.0, 0.34, THREE.MathUtils.smoothstep(-d.y, 0.55, 1.0));
 
         const local = new THREE.Vector3(d.x * SEMI.x * g * bottomTaper, d.y * SEMI.y * g, d.z * SEMI.z * g * bottomTaper);
         const world = new THREE.Vector3(local.x + side * GAP, local.y + 0.05, local.z);
@@ -153,20 +179,27 @@ export class BrainFormationEngine {
       }
     }
 
-    // ---- brainstem: tapering column, rings + interior fill, feeding the
-    // pedestal, same "dense scattered fill" technique that worked for the
-    // 2D version's trunk, now genuinely 3D ----
-    const stemTop = -0.42,
+    // ---- brainstem: real feedback was that this read as a straight funnel
+    // separate from the brain rather than an organic extension of it.
+    // Fixed three ways: stemTop now roughly matches the hemisphere neck's
+    // own pinched width (continuity, not a sudden jump to a thin cone),
+    // the taper curve (pow 1.8, not 1.3) stays wide longer near the top
+    // and narrows late rather than shrinking evenly the whole way down,
+    // and the cross-section gets angular+height-dependent noise so it's
+    // not a perfect circle at any height -- an irregular, organic column.
+    const stemTop = -0.5,
       stemBottom = -0.95;
     const stemSteps = 46;
     let stemIdx = 0;
     while (stemIdx < this.brainstemCount) {
       const t = Math.random(); // 0 = top (wide), 1 = bottom (narrow)
       const y = THREE.MathUtils.lerp(stemTop, stemBottom, t);
-      const radius = THREE.MathUtils.lerp(0.16, 0.045, Math.pow(t, 1.3));
-      const rr = radius * Math.sqrt(Math.random());
+      const baseRadius = THREE.MathUtils.lerp(0.22, 0.05, Math.pow(t, 1.8));
       const ang = Math.random() * Math.PI * 2;
-      const sway = 0.03 * Math.sin(t * Math.PI * 3.1 + ang) * (1 - t);
+      const irregular = 1 + 0.2 * Math.sin(ang * 5 + t * 7) + 0.12 * Math.cos(ang * 8 - t * 4);
+      const radius = baseRadius * irregular;
+      const rr = radius * Math.sqrt(Math.random());
+      const sway = 0.035 * Math.sin(t * Math.PI * 3.1 + ang) * (1 - t * 0.6);
       const target = new THREE.Vector3(Math.cos(ang) * rr + sway, y, Math.sin(ang) * rr);
       const start = randomScatterPoint();
       const color = blendedColor(target);

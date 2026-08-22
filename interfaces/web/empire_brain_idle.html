@@ -1,6 +1,28 @@
 <title>Empire Brain</title>
 <meta name="description" content="AI_EMPIRE's idle-state presence — a dense neural brain on a braided trunk, sweeping green to gold to blue to violet across every division. Served locally by the Systems &amp; Automation server, wired to real data.">
 
+<!-- Real bug found live: this had been placed further down, after the
+     panel's <div> markup -- this file has no explicit <head>/<body>, so
+     the browser's HTML5 parser implicitly closes <head> the moment it
+     hits body-only content (the first <div>), and an import map placed
+     after that point gets silently dropped from the DOM entirely
+     (confirmed via document.head.children / outerHTML showing no trace of
+     it). Import maps must land inside the implicit <head>, so this has to
+     stay above any body-only element -- title/meta/style all keep the
+     parser in "in head" mode, a <div> does not.
+     Needed because the postprocessing addons EmpireBrain.js pulls in
+     (EffectComposer/RenderPass/UnrealBloomPass) import THREE internally
+     via the bare specifier "three", which only resolves if something
+     maps that name to a real URL first. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/"
+  }
+}
+</script>
+
 <style>
   :root {
     --void: #030405;
@@ -65,7 +87,7 @@
     top: 26px;
     left: 30px;
     z-index: 5;
-    max-width: 60%;
+    max-width: 92%;
   }
   .header .eyebrow {
     font-size: 0.62rem;
@@ -81,6 +103,15 @@
     font-size: clamp(1.3rem, 2.6vw, 1.9rem);
     letter-spacing: 0.1em;
     color: var(--ink-bright);
+    /* Real overlap bug: at some real viewport widths "EMPIRE BRAIN" wrapped
+       to 2 lines inside the old 60%-max-width header, and the left-column
+       cards below (positioned at a fixed top offset assuming a 1-line
+       header) rendered on top of the wrapped second line and the subtitle
+       -- confirmed live via a real screenshot. Forcing one line here, with
+       the widened max-width above giving it room, is the fix; wrapping to
+       a second line was never an acceptable fallback since nothing below
+       it accounts for that extra height. */
+    white-space: nowrap;
   }
   .header .divider {
     width: 96px;

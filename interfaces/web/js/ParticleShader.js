@@ -41,10 +41,15 @@ export const particleVertexShader = `
 
     vec3 pos;
     if (aOrbitRadius > 0.0) {
-      // pedestal-ring orbit particles -- circle continuously once formed,
-      // fading in from a scattered start like everything else.
+      // pedestal-ring orbit particles -- circle continuously once formed.
+      // Per feedback, a subset should periodically rise from the pedestal
+      // toward the brainstem rather than just circling in place -- a cheap
+      // sawtooth on top of the orbit, GPU-driven, no extra particle system.
       float ang = uTime * aOrbitSpeed + aPhase * 6.2831853;
-      vec3 orbitTarget = vec3(cos(ang) * aOrbitRadius, aOrbitY, sin(ang) * aOrbitRadius);
+      float cycle = fract(uTime * 0.09 + aPhase);
+      float rise = (aPhase > 0.6) ? smoothstep(0.0, 0.7, cycle) * (1.0 - smoothstep(0.7, 1.0, cycle)) * 0.55 : 0.0;
+      float shrink = 1.0 - rise * 0.7; // spiral inward while rising, toward the brainstem's own radius
+      vec3 orbitTarget = vec3(cos(ang) * aOrbitRadius * shrink, aOrbitY + rise, sin(ang) * aOrbitRadius * shrink);
       pos = mix(aStart, orbitTarget, e);
     } else {
       pos = mix(aStart, aTarget, e);

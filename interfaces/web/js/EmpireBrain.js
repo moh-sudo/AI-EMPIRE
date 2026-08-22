@@ -8,6 +8,9 @@
 // about Three.js.
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js";
+import { EffectComposer } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { BrainFormationEngine } from "./BrainFormationEngine.js";
 import { NeuralParticleSystem } from "./NeuralParticleSystem.js";
 import { NeuralNetwork } from "./NeuralNetwork.js";
@@ -34,7 +37,19 @@ export class EmpireBrain {
   }
 
   _initScene() {
-    const { clientWidth: w, clientHeight: h } = this.container;
+    // Real bug found live: if the container has zero layout size at
+    // construction time (page not yet visible/painted -- can happen on a
+    // background tab, and is exactly what this session's own preview pane
+    // hit), renderer.setSize(0,0) leaves the canvas permanently 0x0 --
+    // ResizeObserver only fires on a size CHANGE, so it never fires again
+    // once the tab becomes visible if the container's size doesn't
+    // actually change. Falls back to a sane default here, and the
+    // visibilitychange listener in _bindResize re-applies the real size
+    // once the page is actually visible.
+    const FALLBACK_W = 800,
+      FALLBACK_H = 640;
+    const w = this.container.clientWidth || FALLBACK_W;
+    const h = this.container.clientHeight || FALLBACK_H;
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(38, w / Math.max(h, 1), 0.1, 10);
     // Pulled back / lowered slightly from the first pass: gl.readPixels
@@ -45,10 +60,20 @@ export class EmpireBrain {
     this.camera.position.set(0, 0.0, 2.75);
     this.camera.lookAt(0, -0.15, 0);
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // Real regression found live: UnrealBloomPass's composite shader
+    // writes alpha=1 across the WHOLE frame, not just where something was
+    // actually drawn -- confirmed via gl.readPixels on a definitely-empty
+    // corner reading alpha=255. A transparent canvas (the first pass's
+    // approach, letting the panel's own CSS gradient show through) doesn't
+    // survive bloom without extra alpha-preservation work. Simplest robust
+    // fix: render opaque with a clear color matching the panel's own
+    // --void token instead of fighting the bloom pass's alpha handling --
+    // visually near-identical here since the panel's background is
+    // already a subtle, mostly-flat near-black gradient.
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(w, h);
-    this.renderer.setClearColor(0x000000, 0);
+    this.renderer.setClearColor(0x030405, 1);
     this.container.appendChild(this.renderer.domElement);
 
     this.group = new THREE.Group();
@@ -56,6 +81,23 @@ export class EmpireBrain {
     // column cards, matching this display's established composition
     this.group.position.x = 0.55;
     this.scene.add(this.group);
+
+    // Real bloom, requested explicitly ("subtle bloom around brightest
+    // pathways"), not a shader trick. Threshold kept fairly high (0.4) and
+    // strength modest (0.45) deliberately -- the LAST time brightness got
+    // tuned carelessly here (the gl_PointSize bug), it blew out 90% of the
+    // canvas to white; a high threshold means only genuinely bright pixels
+    // (particle cores, pulses) bloom, not the whole faint mesh.
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    // Radius/threshold retuned after a real gl.readPixels check: 0.35
+    // radius let bloom haze bleed across the ENTIRE canvas, even a
+    // definitely-empty corner (background read as rgb(28,34,38) instead
+    // of the near-black clear color) -- tighter radius and a higher
+    // threshold keep it contained to actually-bright points instead of a
+    // uniform glow wash.
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.4, 0.22, 0.5);
+    this.composer.addPass(this.bloomPass);
   }
 
   /** canvasHeight / (2*tan(fov/2)) -- the real perspective-projection
@@ -89,6 +131,12 @@ export class EmpireBrain {
   _bindResize() {
     this._resizeObserver = new ResizeObserver(() => this._onResize());
     this._resizeObserver.observe(this.container);
+    // Catches the "container size never changes, so ResizeObserver never
+    // fires again" case: a tab that loaded hidden, then becomes visible
+    // later with the exact same layout size it always had.
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") this._onResize();
+    });
   }
 
   _onResize() {
@@ -97,6 +145,7 @@ export class EmpireBrain {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(w, h);
+    this.composer.setSize(w, h);
     this.particleSystem.setSizeAttenuation(this._computeSizeAttenuation());
   }
 
@@ -138,7 +187,7 @@ export class EmpireBrain {
       this.group.rotation.y = Math.sin(this.elapsed * 0.08) * 0.18 + this.elapsed * params.rotateSpeed * 0.02;
     }
 
-    this.renderer.render(this.scene, this.camera);
+    this.composer.render();
   }
 
   dispose() {

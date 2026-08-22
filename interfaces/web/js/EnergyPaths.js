@@ -9,7 +9,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js";
 import { lineVertexShader, lineFragmentShader } from "./NeuralShader.js";
 
-const PATH_COUNT = 11;
+// Reduced from 11 -- feedback was that major pathways should read as
+// sparse and distinct, not roughly as numerous as the medium tier.
+const PATH_COUNT = 7;
 const PULSES_PER_PATH = 1;
 
 export class EnergyPaths {
@@ -55,6 +57,7 @@ export class EnergyPaths {
     const lineColors = [];
     const starts = [];
     const durations = [];
+    const weights = [];
     const SEGMENTS = 24;
 
     this.curves.forEach(({ curve, colorA, colorB }, pathIdx) => {
@@ -71,6 +74,8 @@ export class EnergyPaths {
         const start = 0.72 + (pathIdx % 5) * 0.02;
         starts.push(start, start);
         durations.push(0.18, 0.18);
+        // brightest tier -- above NeuralNetwork's medium weight of 1.0
+        weights.push(1.6, 1.6);
       }
     });
 
@@ -79,6 +84,7 @@ export class EnergyPaths {
     geometry.setAttribute("aColor", new THREE.BufferAttribute(new Float32Array(lineColors), 3));
     geometry.setAttribute("aLineStart", new THREE.BufferAttribute(new Float32Array(starts), 1));
     geometry.setAttribute("aLineDuration", new THREE.BufferAttribute(new Float32Array(durations), 1));
+    geometry.setAttribute("aWeight", new THREE.BufferAttribute(new Float32Array(weights), 1));
 
     this.uniforms = { uFormProgress: { value: 0 }, uOpacity: { value: 0.75 } };
     const material = new THREE.ShaderMaterial({
