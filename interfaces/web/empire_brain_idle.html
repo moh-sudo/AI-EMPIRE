@@ -94,25 +94,50 @@
     letter-spacing: 0.02em;
   }
 
-  /* ---------- left column cards ---------- */
-  .card {
+  /* ---------- left column cards ----------
+     A real bug lived here: card-agents/card-status/quote-block each had
+     an independently-guessed `top` percentage. That was fine for a
+     shorter division list, but with 7 real divisions the agents card
+     grows taller than the 56% gap left for it, and card-status renders
+     ON TOP of it (confirmed live via an actual screenshot -- the same
+     "measure real bounds, don't assume a fixed constant" lesson as the
+     brain silhouette bug, applied to layout this time). Fixed by making
+     all three normal-flow children of one flex column instead of three
+     separately-positioned absolutes -- this can't overlap regardless of
+     how many divisions the list ever grows to. */
+  .left-column {
     position: absolute;
     left: 28px;
+    top: 106px;
+    bottom: 48px;
+    z-index: 5;
+    width: 220px;
+    display: flex;
+    flex-direction: column;
+    /* Second real overflow found live: even after fixing the top/bottom
+       collision above, 7 real division rows + the status card + the quote
+       block together were still taller than the space between the header
+       and the bottombar, so the tail of the status card and the whole
+       quote block spilled past the panel's overflow:hidden edge instead of
+       just overlapping visibly. Tightened every gap/padding below to
+       actually fit the real content in the real space, verified with a
+       live screenshot rather than assumed. */
+  }
+  .card {
     background: var(--panel-bg);
     border: 1px solid var(--panel-border);
     border-radius: 12px;
     backdrop-filter: blur(6px);
-    z-index: 5;
-    width: 220px;
+    flex-shrink: 0;
   }
-  .card-agents { top: 27%; padding: 14px 14px 12px; }
-  .card-status { top: 56%; padding: 14px 16px; }
+  .card-agents { padding: 9px 12px 8px; }
+  .card-status { padding: 9px 14px; margin-top: 8px; }
 
   .agents-title {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
   .agents-title .word {
     font-family: "Syne", sans-serif;
@@ -137,27 +162,27 @@
   }
   @keyframes dotpulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
 
-  .division-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+  .division-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
   .division-list li {
     display: flex;
     align-items: center;
-    gap: 9px;
-    font-size: 0.66rem;
+    gap: 8px;
+    font-size: 0.6rem;
     letter-spacing: 0.03em;
     color: var(--ink);
   }
   .division-list .badge {
-    width: 18px; height: 18px;
+    width: 16px; height: 16px;
     border-radius: 50%;
     border: 1px solid var(--c);
     display: flex; align-items: center; justify-content: center;
     box-shadow: 0 0 8px -1px var(--c);
     flex-shrink: 0;
   }
-  .division-list .badge svg { width: 9px; height: 9px; color: var(--c); }
+  .division-list .badge svg { width: 8px; height: 8px; color: var(--c); }
   .division-list .name { flex: 1; }
   .division-list .idle {
-    font-size: 0.56rem;
+    font-size: 0.54rem;
     letter-spacing: 0.1em;
     color: var(--ink-dim);
   }
@@ -166,16 +191,16 @@
   .status-title {
     font-family: "Syne", sans-serif;
     font-weight: 800;
-    font-size: 0.72rem;
+    font-size: 0.7rem;
     letter-spacing: 0.1em;
     color: var(--ink-bright);
-    margin: 0 0 10px;
+    margin: 0 0 6px;
   }
   .stat-row {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    padding: 6px 0;
+    padding: 4px 0;
     border-bottom: 1px solid rgba(255,255,255,0.06);
     font-size: 0.66rem;
     letter-spacing: 0.06em;
@@ -193,22 +218,19 @@
 
   /* ---------- quote + waveform, bottom-left ---------- */
   .quote-block {
-    position: absolute;
-    left: 28px;
-    bottom: 58px;
-    z-index: 5;
+    margin-top: auto; /* flex child of .left-column -- pushes to the bottom of the column, never overlapping the cards above it */
     max-width: 240px;
   }
   .quote-block .quote {
-    margin: 0 0 10px;
+    margin: 0 0 4px;
     font-family: "Syne", sans-serif;
     font-weight: 600;
-    font-size: 0.82rem;
-    line-height: 1.4;
+    font-size: 0.66rem;
+    line-height: 1.25;
     color: var(--ink-bright);
     opacity: 0.9;
   }
-  .waveform { width: 190px; height: 24px; display: block; }
+  .waveform { width: 190px; height: 16px; display: block; }
 
   /* ---------- bottom bar ---------- */
   .bottombar {
@@ -259,25 +281,27 @@
     <p class="subtitle">Always visible, quiet, alive.</p>
   </div>
 
-  <div class="card card-agents">
-    <div class="agents-title">
-      <span class="word">AI_EMPIRE</span>
-      <span class="status-row"><span class="status-dot"></span>ONLINE</span>
+  <div class="left-column">
+    <div class="card card-agents">
+      <div class="agents-title">
+        <span class="word">AI_EMPIRE</span>
+        <span class="status-row"><span class="status-dot"></span>ONLINE</span>
+      </div>
+      <ul class="division-list" id="divisionList"></ul>
     </div>
-    <ul class="division-list" id="divisionList"></ul>
-  </div>
 
-  <div class="card card-status">
-    <p class="status-title">EMPIRE STATUS</p>
-    <div class="stat-row"><span>Services Online</span><span class="stat-num" id="statServices">—</span></div>
-    <div class="stat-row"><span>Alerts</span><span class="stat-num" id="statAlerts">—</span></div>
-    <div class="stat-row"><span>Recent Activity (1h)</span><span class="stat-num" id="statActivity">—</span></div>
-    <div style="text-align:right;"><span class="stat-sub" id="statSub">connecting...</span></div>
-  </div>
+    <div class="card card-status">
+      <p class="status-title">EMPIRE STATUS</p>
+      <div class="stat-row"><span>Active Tasks</span><span class="stat-num" id="statActivity">—</span></div>
+      <div class="stat-row"><span>Agents Online</span><span class="stat-num" id="statServices">—</span></div>
+      <div class="stat-row"><span>Alerts</span><span class="stat-num" id="statAlerts">—</span></div>
+      <div style="text-align:right;"><span class="stat-sub" id="statSub">connecting...</span></div>
+    </div>
 
-  <div class="quote-block">
-    <p class="quote">&ldquo;The empire works,<br>so you can think bigger.&rdquo;</p>
-    <svg class="waveform" viewBox="0 0 190 24" preserveAspectRatio="none" id="waveform"></svg>
+    <div class="quote-block">
+      <p class="quote">&ldquo;The empire works,<br>so you can think bigger.&rdquo;</p>
+      <svg class="waveform" viewBox="0 0 190 24" preserveAspectRatio="none" id="waveform"></svg>
+    </div>
   </div>
 
   <div class="bottombar">
@@ -347,6 +371,10 @@
     statServices.textContent = data.services_online + '/' + data.services_total;
     statAlerts.textContent = data.alerts;
     statAlerts.style.color = data.alerts > 0 ? 'var(--warn)' : 'var(--ink-bright)';
+    // "Active Tasks" has no real task-queue backing yet (job_queue exists
+    // in the schema but nothing writes to it today) -- proxied honestly by
+    // real audit_vault activity in the last hour rather than a fabricated
+    // number. Revisit if/when job_queue is actually used.
     statActivity.textContent = data.recent_activity_1h;
     if (data.alerts > 0) {
       statSub.textContent = data.alerts + ' service(s) need attention';
@@ -427,10 +455,20 @@
   // ---- color: a left-to-right sweep (green -> gold -> blue -> violet),
   // the trunk pulled toward warm gold regardless of x -- matches the
   // reference far more closely than the old height-only blend did.
+  //
+  // Real bug found from TWO live screenshots, not one guess: the canopy's
+  // real ux extent only spans roughly u=0.10 to u=0.90 (measured from the
+  // actual blob geometry below, not assumed), and green->gold at 0.28 left
+  // barely any of that range for green before blending into gold -- most
+  // canopy points landed past the gold stop already, so green never
+  // covered enough area to read as its own color next to the surrounding
+  // gold glow. Pushed the gold stop out to 0.45 to give green real room,
+  // and made the green itself less teal/more a pure spring-green so it
+  // doesn't get confused with the blue stop further along the sweep.
   var STOPS = [
-    [0.00, [78, 230, 160]],   // green
-    [0.42, [255, 179, 71]],   // gold
-    [0.72, [94, 200, 255]],   // blue
+    [0.00, [70, 230, 110]],   // green
+    [0.45, [255, 179, 71]],   // gold
+    [0.68, [94, 200, 255]],   // blue
     [1.00, [199, 125, 255]]   // violet
   ];
   function horizColor(u) {
@@ -467,12 +505,18 @@
     offCtx.arc(cx, cy, r, 0, Math.PI * 2);
     offCtx.fill();
   }
-  blob(115, 100, 62); blob(185, 100, 62);
-  blob(150, 40, 30); blob(95, 52, 30); blob(205, 52, 30);
-  blob(80, 95, 24); blob(220, 95, 24);
-  blob(88, 138, 27); blob(212, 138, 27);
-  blob(150, 168, 24);
-  blob(120, 42, 18); blob(180, 42, 18);
+  // Bigger, wider-set hemispheres than the first pass -- a live
+  // screenshot showed the brain reading as small/sparse relative to the
+  // panel next to the reference, which fills most of the panel's height.
+  blob(105, 98, 74); blob(195, 98, 74);
+  blob(150, 34, 34); blob(85, 48, 34); blob(215, 48, 34);
+  blob(62, 92, 27); blob(238, 92, 27);
+  blob(72, 140, 30); blob(228, 140, 30);
+  blob(150, 172, 27);
+  blob(115, 36, 20); blob(185, 36, 20);
+  // extra lower bulges so the canopy flares wider right above the trunk,
+  // reading as roots branching rather than a canopy sitting on a stick
+  blob(96, 158, 22); blob(204, 158, 22);
 
   var img = offCtx.getImageData(0, 0, OFFW, OFFH).data;
 
@@ -500,7 +544,10 @@
     for (var px = 0; px < OFFW; px += STRIDE) {
       var alpha = img[(py * OFFW + px) * 4 + 3];
       if (alpha < 128) continue;
-      if (Math.random() < 0.42) continue;
+      // kept-probability raised from the first pass's 0.58 -- a live
+      // screenshot showed the canopy reading sparse next to the reference's
+      // dense point-cloud.
+      if (Math.random() < 0.32) continue;
       var ux = ((px + (Math.random()-0.5)*STRIDE) / OFFW - 0.5) * 2;
       var uyRaw = 1 - (py - minPy) / (maxPy - minPy); // 0 = real lowest canopy pixel, 1 = real highest
       var uy = lerp(CANOPY_BASE_UY, CANOPY_TOP_UY, uyRaw);
@@ -508,32 +555,55 @@
     }
   }
 
-  // ---- trunk: six braided strands rising from the dais, densely sampled so
-  // it reads as a glowing trunk mass, not a handful of thin isolated lines
-  var STRANDS = 6;
+  // ---- trunk: eight strands rising from the dais, widest at the base and
+  // tapering as they near the canopy -- reads as roots spreading into the
+  // ground rather than a uniform braided column (the reference's trunk
+  // visibly flares at its base, the first pass's fixed-width braid didn't).
+  var STRANDS = 8;
   for (var si = 0; si < STRANDS; si++) {
     var phase = (si / STRANDS) * Math.PI * 2;
     var steps = 60;
     for (var i = 0; i <= steps; i++) {
       var t = i / steps;
       var uy = t * CANOPY_BASE_UY;
-      var amp = 0.055 * Math.sin(t * Math.PI * 0.85 + 0.2); // widest mid-trunk, pinched at both ends
-      var ux = Math.sin(t * Math.PI * 2.6 + phase) * amp;
+      var spread = 0.17 * Math.pow(1 - t, 1.6) + 0.016; // wide at t=0 (dais), narrow by t=1 (canopy)
+      var ux = Math.sin(t * Math.PI * 2.4 + phase) * spread;
       nodes.push({ ux: ux, uy: uy, color: mixColor(uy, ux) });
     }
   }
 
-  // connect each point to its ~2 nearest neighbors -- the neural-mesh texture
+  // connect each point to its ~2 nearest neighbors -- the neural-mesh
+  // texture. Bucketed into a uniform grid (cell = MAX_LINK_DIST) instead of
+  // the first pass's checking every node against every other node -- that
+  // was O(n^2) and stayed fast enough at ~3.2k nodes, but the density
+  // increase above roughly doubles node count, and an O(n^2) scan doesn't
+  // scale gracefully; bucketing keeps this a one-time, sub-second cost
+  // regardless of how dense the cloud gets.
   var segs = [];
   var seenPairs = {};
   var MAX_LINK_DIST = 0.10;
+  var grid = {};
+  function cellKey(cx, cy) { return cx + '_' + cy; }
+  for (var gi = 0; gi < nodes.length; gi++) {
+    var gx = Math.floor(nodes[gi].ux / MAX_LINK_DIST), gy = Math.floor(nodes[gi].uy / MAX_LINK_DIST);
+    var key = cellKey(gx, gy);
+    (grid[key] || (grid[key] = [])).push(gi);
+  }
   for (var a = 0; a < nodes.length; a++) {
+    var acx = Math.floor(nodes[a].ux / MAX_LINK_DIST), acy = Math.floor(nodes[a].uy / MAX_LINK_DIST);
     var dists = [];
-    for (var bI = 0; bI < nodes.length; bI++) {
-      if (bI === a) continue;
-      var dx = nodes[a].ux - nodes[bI].ux, dy = nodes[a].uy - nodes[bI].uy;
-      var d = Math.sqrt(dx*dx + dy*dy);
-      if (d < MAX_LINK_DIST) dists.push([d, bI]);
+    for (var ncx = acx - 1; ncx <= acx + 1; ncx++) {
+      for (var ncy = acy - 1; ncy <= acy + 1; ncy++) {
+        var bucket = grid[cellKey(ncx, ncy)];
+        if (!bucket) continue;
+        for (var bk = 0; bk < bucket.length; bk++) {
+          var bI = bucket[bk];
+          if (bI === a) continue;
+          var dx = nodes[a].ux - nodes[bI].ux, dy = nodes[a].uy - nodes[bI].uy;
+          var d = Math.sqrt(dx*dx + dy*dy);
+          if (d < MAX_LINK_DIST) dists.push([d, bI]);
+        }
+      }
     }
     dists.sort(function (p, q) { return p[0] - q[0]; });
     var linkCount = Math.min(2, dists.length);
@@ -563,11 +633,13 @@
 
   function unitToPx(ux, uy) {
     // brain sits right-of-center, leaving room for the left column; uy=0 is
-    // the dais, uy=1 is the canopy top.
-    var cx = W * 0.64;
+    // the dais, uy=1 is the canopy top. Span raised from 0.34/0.70 -- a live
+    // screenshot showed the brain occupying a noticeably smaller fraction of
+    // the panel than the reference, which lets it dominate the composition.
+    var cx = W * 0.63;
     var baseY = H * 0.90;
-    var spanX = W * 0.34;
-    var spanY = H * 0.70;
+    var spanX = W * 0.40;
+    var spanY = H * 0.80;
     return [cx + ux * spanX, baseY - uy * spanY];
   }
 
