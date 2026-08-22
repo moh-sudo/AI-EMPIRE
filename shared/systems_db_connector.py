@@ -30,6 +30,7 @@ entirely by never touching Supavisor/raw Postgres connections -- it's
 pure REST, same as everything else in this codebase.
 """
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from supabase import Client
@@ -39,6 +40,65 @@ from shared.scoped_db import get_scoped_client
 
 def get_client() -> Client:
     return get_scoped_client("systems_agent")
+
+
+# service_name values as actually written to circuit_breakers by
+# reliability_monitor.py's DIVISION_PORTS + its n8n/ollama/supabase/
+# fastapi_router checks -- confirmed live 2026-08-22 by querying the
+# real table rather than assumed from the code.
+_DIVISION_SERVICE_MAP = {
+    "rii": "rii_server",
+    "learning": "learning_server",
+    "fixera": "fixera_server",
+    "forex": "forex_server",
+    "audit": "audit_server",
+    # the Orchestrator totem has no monitored process of its own -- it
+    # IS the routing layer, so fastapi_router is its real proxy rather
+    # than a fabricated status.
+    "orchestrator": "fastapi_router",
+}
+
+
+def get_empire_status() -> dict[str, Any]:
+    """Real, live snapshot for the Empire Brain display -- every field
+    here is a genuine read against circuit_breakers/audit_vault via the
+    systems_agent scoped connector, never a placeholder. 'Systems' has
+    no row of its own in circuit_breakers (it doesn't monitor itself),
+    but a request reaching this function at all proves it's running, so
+    it's reported healthy unconditionally rather than queried.
+
+    Deliberately does not touch agent_registry -- systems_agent has no
+    grant on it today (see infrastructure/database/migrations/
+    0010_systems_agent_rls_jwt.sql, scoped to circuit_breakers/
+    audit_vault only). circuit_breakers already carries a real liveness
+    signal for every division server, which is what this display
+    actually needs, so no new migration/grant was required for this
+    first real slice."""
+    client = get_client()
+
+    breakers = client.table("circuit_breakers").select("service_name,state,failure_count").execute().data
+    by_service = {row["service_name"]: row for row in breakers}
+
+    divisions = {}
+    for division, service_name in _DIVISION_SERVICE_MAP.items():
+        row = by_service.get(service_name)
+        divisions[division] = row["state"] if row else "unknown"
+    divisions["systems"] = "healthy"
+
+    monitored_services = list(_DIVISION_SERVICE_MAP.values()) + ["n8n", "ollama", "supabase"]
+    services_online = sum(1 for name in monitored_services if by_service.get(name, {}).get("state") == "healthy")
+    alerts = sum(1 for name in monitored_services if by_service.get(name, {}).get("state", "healthy") != "healthy")
+
+    since = (datetime.now(UTC) - timedelta(hours=1)).isoformat()
+    recent = client.table("audit_vault").select("id", count="exact").gte("created_at", since).execute()
+
+    return {
+        "divisions": divisions,
+        "services_online": services_online,
+        "services_total": len(monitored_services) + 1,  # +1 for systems itself
+        "alerts": alerts,
+        "recent_activity_1h": recent.count or 0,
+    }
 
 
 _ALLOWED_CIRCUIT_BREAKER_FIELDS = {

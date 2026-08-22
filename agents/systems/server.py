@@ -4,19 +4,43 @@ shell/command-execution node available -- it explicitly points to
 HTTP Request instead).
 """
 
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 
 from agents.systems.ci_health_monitor import run_ci_health_sweep
 from agents.systems.host_security_scan import run_host_security_sweep
 from agents.systems.reliability_monitor import run_health_check_sweep
 from agents.systems.resource_monitor import run_resource_check
 from agents.systems.telegram_listener import check_for_systems_requests
+from shared.systems_db_connector import get_empire_status
 
 app = FastAPI(title="Systems & Automation Division")
+
+WEB_DIR = Path(__file__).resolve().parent.parent.parent / "interfaces" / "web"
+
+
+@app.get("/brain")
+def brain_page():
+    """Serves the Empire Brain idle-state display -- the first real
+    slice of AI_EMPIRE's visual presence, decided 2026-08-22. Same-origin
+    with /empire-status below on purpose (no CORS needed): open
+    http://127.0.0.1:8007/brain in a browser tab and it's a genuinely
+    persistent local page, not a one-off artifact link."""
+    return FileResponse(WEB_DIR / "empire_brain_idle.html")
+
+
+@app.get("/empire-status")
+def empire_status():
+    """Real, live data for the Empire Brain display -- see
+    shared/systems_db_connector.get_empire_status() for exactly what's
+    real vs. not yet wired."""
+    return get_empire_status()
 
 
 @app.post("/health-check")

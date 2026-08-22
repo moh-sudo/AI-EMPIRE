@@ -54,6 +54,16 @@ Everything runs locally, started manually per session (nothing persists across a
 - **Division servers** — one `uvicorn` process per division on its own port (table above), each a thin FastAPI wrapper (`agents/<division>/server.py`) around real agent logic.
 - **apps/api_gateway** (the Phase 1 Hybrid Router) exists in code but is **not currently running** as a persistent service — confirmed 2026-08-06. Not part of the live topology yet.
 
+## Visual presence — Empire Brain (added 2026-08-22, first real slice)
+
+`agents/systems/server.py`'s `GET /brain` serves `interfaces/web/empire_brain_idle.html` — a canvas-particle idle-state display, persistent at `http://127.0.0.1:8007/brain` since it rides the same autostart process as everything else in this table (no separate service to launch). Same-origin `GET /empire-status` (`shared/systems_db_connector.get_empire_status()`) feeds it real numbers, polled every 20s — no hardcoded placeholders:
+- Services Online / Alerts — real `circuit_breakers` rows for the 6 division servers + n8n/ollama/supabase, read via the existing `systems_agent` scoped connector (no new migration needed — `circuit_breakers` was already granted by `0010_systems_agent_rls_jwt.sql`).
+- Recent Activity (1h) — real `audit_vault` row count in the last hour, same connector.
+- Per-division badges — real per-service `circuit_breakers.state`, mapped `rii→rii_server`, `learning→learning_server`, `fixera→fixera_server`, `forex→forex_server`, `audit→audit_server`. `systems` has no row of its own (it doesn't monitor itself) so it's reported healthy unconditionally, since a request reaching the endpoint at all proves it's up. `orchestrator` has no monitored process either — proxied through `fastapi_router`'s breaker state as the closest real analog to the routing layer, not fabricated.
+- **Known gap, not yet resolved:** Personal & Education has no badge in this panel at all — the display's 7-totem layout (RII/Learning/Fixera/Forex/Systems/Audit/Orchestrator) came from Mohamed's reference-image design before this real-data wiring pass, and doesn't include Personal. Worth deciding together whether to add an 8th totem or whether Personal was intentionally left out of this specific view.
+
+This is the first piece of a larger planned visual system (wake/listening/thinking/etc. states, one totem per division) — see `interfaces/web/empire_brain_idle.html`'s own comments for the canvas-rendering technique. `interfaces/wake_listener.py` (built 2026-08-10, a real clap + "wake up" phrase trigger) is not wired to this display yet.
+
 ## Data layer
 
 **AI_EMPIRE's own Supabase** (project `lkcfbmcjwmxxvtpjspgr`) holds 19 tables across two access patterns:
