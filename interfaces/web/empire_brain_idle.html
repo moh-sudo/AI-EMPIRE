@@ -50,13 +50,14 @@
     box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 40px 90px -30px rgba(0,0,0,0.9);
   }
 
-  canvas#brain {
+  #brain-container {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     display: block;
   }
+  #brain-container canvas { display: block; }
 
   /* ---------- header ---------- */
   .header {
@@ -272,7 +273,7 @@
 </style>
 
 <div class="panel" id="panel">
-  <canvas id="brain"></canvas>
+  <div id="brain-container"></div>
 
   <div class="header">
     <p class="eyebrow">Idle Mode</p>
@@ -398,6 +399,10 @@
         el.classList.remove('is-down');
       }
     });
+
+    // real event -> real brief brain brightness pulse, wired to the
+    // 3D module below via a small public API rather than any fake timer
+    if (window.empireBrain) window.empireBrain.pulseHealth();
   }
 
   function pollStatus() {
@@ -435,367 +440,15 @@
   }
   if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) drawWave();
 
-  /* ================= brain particle construct ================= */
-  var canvas = document.getElementById('brain');
-  var ctx = canvas.getContext('2d');
-  var panel = document.getElementById('panel');
-  var dpr = Math.min(window.devicePixelRatio || 1, 2);
-  var W, H;
-
-  function resize() {
-    var r = panel.getBoundingClientRect();
-    W = canvas.width = Math.round(r.width * dpr);
-    H = canvas.height = Math.round(r.height * dpr);
-  }
-  window.addEventListener('resize', resize);
-  resize();
-
-  function lerp(a, b, t) { return a + (b - a) * t; }
-
-  // ---- color: a left-to-right sweep (green -> gold -> blue -> violet),
-  // the trunk pulled toward warm gold regardless of x -- matches the
-  // reference far more closely than the old height-only blend did.
-  //
-  // Real bug found from TWO live screenshots, not one guess: the canopy's
-  // real ux extent only spans roughly u=0.10 to u=0.90 (measured from the
-  // actual blob geometry below, not assumed), and green->gold at 0.28 left
-  // barely any of that range for green before blending into gold -- most
-  // canopy points landed past the gold stop already, so green never
-  // covered enough area to read as its own color next to the surrounding
-  // gold glow. Pushed the gold stop out to 0.45 to give green real room,
-  // and made the green itself less teal/more a pure spring-green so it
-  // doesn't get confused with the blue stop further along the sweep.
-  // Rebalanced again after a direct diff against the reference: gold there
-  // is a concentrated core radiating from the trunk connection, not a wide
-  // band eating a third of the canopy's width, and blue visibly owns most
-  // of the right hemisphere with violet only taking over near the very top
-  // -- gold compressed to 0.30, blue's zone widened to carry through 0.58.
-  var STOPS = [
-    [0.00, [70, 230, 110]],   // green
-    [0.30, [255, 179, 71]],   // gold
-    [0.58, [94, 200, 255]],   // blue
-    [1.00, [199, 125, 255]]   // violet
-  ];
-  function horizColor(u) {
-    u = Math.min(1, Math.max(0, u));
-    for (var i = 0; i < STOPS.length - 1; i++) {
-      var a = STOPS[i], b = STOPS[i + 1];
-      if (u >= a[0] && u <= b[0]) {
-        var t = (u - a[0]) / (b[0] - a[0]);
-        return [lerp(a[1][0], b[1][0], t), lerp(a[1][1], b[1][1], t), lerp(a[1][2], b[1][2], t)];
-      }
-    }
-    return STOPS[STOPS.length - 1][1];
-  }
-  var GOLD = [255, 179, 71];
-  function mixColor(uy, ux) {
-    var u = (ux + 1) / 2;
-    var hc = horizColor(u);
-    var trunkW = Math.max(0, 1 - uy / 0.5); // strong near the base, gone by uy=0.5
-    var r = lerp(hc[0], GOLD[0], trunkW);
-    var g = lerp(hc[1], GOLD[1], trunkW);
-    var b = lerp(hc[2], GOLD[2], trunkW);
-    return 'rgb(' + (r|0) + ',' + (g|0) + ',' + (b|0) + ')';
-  }
-
-  // ---- canopy: a real brain silhouette, rasterized then sampled (proven
-  // technique -- guarantees the macro-shape reads as a brain) ----
-  var OFFW = 300, OFFH = 260;
-  var off = document.createElement('canvas');
-  off.width = OFFW; off.height = OFFH;
-  var offCtx = off.getContext('2d');
-  offCtx.fillStyle = '#fff';
-  function blob(cx, cy, r) {
-    offCtx.beginPath();
-    offCtx.arc(cx, cy, r, 0, Math.PI * 2);
-    offCtx.fill();
-  }
-  // Bigger, wider-set hemispheres than the first pass -- a live
-  // screenshot showed the brain reading as small/sparse relative to the
-  // panel next to the reference, which fills most of the panel's height.
-  blob(105, 98, 74); blob(195, 98, 74);
-  blob(150, 34, 34); blob(85, 48, 34); blob(215, 48, 34);
-  blob(62, 92, 27); blob(238, 92, 27);
-  blob(72, 140, 30); blob(228, 140, 30);
-  blob(150, 172, 27);
-  blob(115, 36, 20); blob(185, 36, 20);
-  // extra lower bulges so the canopy flares wider right above the trunk,
-  // reading as roots branching rather than a canopy sitting on a stick
-  blob(96, 158, 22); blob(204, 158, 22);
-
-  // Real gap found comparing directly against the reference: the two
-  // hemisphere blobs above touch/merge into one smooth blob with no visible
-  // seam, so the silhouette read as a fluffy cloud rather than a brain --
-  // a real brain's single most identifying feature, the longitudinal
-  // fissure down the center, was simply missing. Cut it back out with
-  // destination-out (a thin pointed lens shape, present near the top,
-  // closed by the time it reaches the trunk connection -- real brains
-  // don't show the fissure all the way to the brainstem either).
-  offCtx.save();
-  offCtx.globalCompositeOperation = 'destination-out';
-  offCtx.beginPath();
-  offCtx.moveTo(150, 10);
-  offCtx.quadraticCurveTo(160, 62, 150, 122);
-  offCtx.quadraticCurveTo(140, 62, 150, 10);
-  offCtx.fill();
-  offCtx.restore();
-
-  // Also missing next to the reference: its canopy edge is irregular and
-  // bumpy (gyri texture), not a smooth circle outline. Scatter small bump
-  // blobs around each hemisphere's perimeter for that organic, non-uniform
-  // edge -- randomized per page load, matching this construct's existing
-  // "alive, not static" character.
-  [[105, 98, 74], [195, 98, 74]].forEach(function (h) {
-    for (var b = 0; b < 10; b++) {
-      var ang = (b / 10) * Math.PI * 2 + Math.random() * 0.35;
-      var rr = h[2] * (0.76 + Math.random() * 0.2);
-      blob(h[0] + Math.cos(ang) * rr, h[1] + Math.sin(ang) * rr * 0.88, 9 + Math.random() * 11);
-    }
-  });
-
-  var img = offCtx.getImageData(0, 0, OFFW, OFFH).data;
-
-  // Real bug from the first render: uyRaw was computed against the FULL
-  // offscreen canvas height, but the lowest blob only reaches ~74% of the
-  // way down it -- so real canopy content never touched uyRaw=0, leaving an
-  // unbridged gap between the trunk's designed endpoint and where the
-  // canopy actually began (the disconnected floating-brain-over-stick-figure
-  // screenshot). Fixed by measuring the real alpha bounding box first, so
-  // the mapping is derived from actual pixels, never assumed.
-  var minPy = OFFH, maxPy = 0;
-  for (var sy = 0; sy < OFFH; sy++) {
-    for (var sx = 0; sx < OFFW; sx++) {
-      if (img[(sy * OFFW + sx) * 4 + 3] >= 128) {
-        if (sy < minPy) minPy = sy;
-        if (sy > maxPy) maxPy = sy;
-      }
-    }
-  }
-
-  var CANOPY_TOP_UY = 0.98, CANOPY_BASE_UY = 0.46; // where the canopy silhouette meets the trunk
-  var nodes = [];
-  var STRIDE = 4;
-  for (var py = 0; py < OFFH; py += STRIDE) {
-    for (var px = 0; px < OFFW; px += STRIDE) {
-      var alpha = img[(py * OFFW + px) * 4 + 3];
-      if (alpha < 128) continue;
-      // kept-probability raised from the first pass's 0.58 -- a live
-      // screenshot showed the canopy reading sparse next to the reference's
-      // dense point-cloud.
-      if (Math.random() < 0.32) continue;
-      var ux = ((px + (Math.random()-0.5)*STRIDE) / OFFW - 0.5) * 2;
-      var uyRaw = 1 - (py - minPy) / (maxPy - minPy); // 0 = real lowest canopy pixel, 1 = real highest
-      var uy = lerp(CANOPY_BASE_UY, CANOPY_TOP_UY, uyRaw);
-      nodes.push({ ux: ux, uy: uy, color: mixColor(uy, ux) });
-    }
-  }
-
-  // ---- trunk: eight strands rising from the dais, widest at the base and
-  // tapering as they near the canopy -- reads as roots spreading into the
-  // ground rather than a uniform braided column (the reference's trunk
-  // visibly flares at its base, the first pass's fixed-width braid didn't).
-  var STRANDS = 8;
-  for (var si = 0; si < STRANDS; si++) {
-    var phase = (si / STRANDS) * Math.PI * 2;
-    var steps = 60;
-    for (var i = 0; i <= steps; i++) {
-      var t = i / steps;
-      var uy = t * CANOPY_BASE_UY;
-      var spread = 0.17 * Math.pow(1 - t, 1.6) + 0.016; // wide at t=0 (dais), narrow by t=1 (canopy)
-      var ux = Math.sin(t * Math.PI * 2.4 + phase) * spread;
-      nodes.push({ ux: ux, uy: uy, color: mixColor(uy, ux) });
-    }
-  }
-
-  // The 8 strands above trace curves on the trunk's surface, but alone they
-  // left visible empty space between them -- next to the reference, that
-  // read as a loose spiral/open braid rather than a solid trunk. Filling
-  // the interior with scattered points (denser near the wide base, same
-  // taper as the strands) gives it real mass.
-  var TRUNK_FILL_STEPS = 70;
-  for (var ti = 0; ti <= TRUNK_FILL_STEPS; ti++) {
-    var tt = ti / TRUNK_FILL_STEPS;
-    var uyFill = tt * CANOPY_BASE_UY;
-    var radius = 0.078 * Math.pow(1 - tt, 1.4) + 0.01;
-    var fillCount = 3 + Math.floor(4 * (1 - tt));
-    for (var f = 0; f < fillCount; f++) {
-      var rr = radius * Math.sqrt(Math.random());
-      var aa = Math.random() * Math.PI * 2;
-      var uxFill = Math.cos(aa) * rr;
-      var uyFillJ = uyFill + Math.sin(aa) * rr * 0.3;
-      nodes.push({ ux: uxFill, uy: uyFillJ, color: mixColor(uyFillJ, uxFill) });
-    }
-  }
-
-  // connect each point to its ~2 nearest neighbors -- the neural-mesh
-  // texture. Bucketed into a uniform grid (cell = MAX_LINK_DIST) instead of
-  // the first pass's checking every node against every other node -- that
-  // was O(n^2) and stayed fast enough at ~3.2k nodes, but the density
-  // increase above roughly doubles node count, and an O(n^2) scan doesn't
-  // scale gracefully; bucketing keeps this a one-time, sub-second cost
-  // regardless of how dense the cloud gets.
-  var segs = [];
-  var seenPairs = {};
-  var MAX_LINK_DIST = 0.10;
-  var grid = {};
-  function cellKey(cx, cy) { return cx + '_' + cy; }
-  for (var gi = 0; gi < nodes.length; gi++) {
-    var gx = Math.floor(nodes[gi].ux / MAX_LINK_DIST), gy = Math.floor(nodes[gi].uy / MAX_LINK_DIST);
-    var key = cellKey(gx, gy);
-    (grid[key] || (grid[key] = [])).push(gi);
-  }
-  for (var a = 0; a < nodes.length; a++) {
-    var acx = Math.floor(nodes[a].ux / MAX_LINK_DIST), acy = Math.floor(nodes[a].uy / MAX_LINK_DIST);
-    var dists = [];
-    for (var ncx = acx - 1; ncx <= acx + 1; ncx++) {
-      for (var ncy = acy - 1; ncy <= acy + 1; ncy++) {
-        var bucket = grid[cellKey(ncx, ncy)];
-        if (!bucket) continue;
-        for (var bk = 0; bk < bucket.length; bk++) {
-          var bI = bucket[bk];
-          if (bI === a) continue;
-          var dx = nodes[a].ux - nodes[bI].ux, dy = nodes[a].uy - nodes[bI].uy;
-          var d = Math.sqrt(dx*dx + dy*dy);
-          if (d < MAX_LINK_DIST) dists.push([d, bI]);
-        }
-      }
-    }
-    dists.sort(function (p, q) { return p[0] - q[0]; });
-    var linkCount = Math.min(2, dists.length);
-    for (var k = 0; k < linkCount; k++) {
-      var bIdx = dists[k][1];
-      var key = a < bIdx ? a + '_' + bIdx : bIdx + '_' + a;
-      if (seenPairs[key]) continue;
-      seenPairs[key] = true;
-      segs.push({ a: a, b: bIdx });
-    }
-  }
-
-  // ---- formation timing: trunk (low uy) first, canopy (high uy) last ----
-  var FORM_DURATION = 4200;
-  nodes.forEach(function (n) {
-    var t0 = n.uy * 0.62;
-    n.startAt = t0 * FORM_DURATION + Math.random() * 220;
-    n.dur = 650 + Math.random() * 400;
-    n.sx = (Math.random() * 2 - 1);
-    n.sy = (Math.random() * 2 - 1) * 0.9 + 0.1;
-    n.jx = Math.random() * Math.PI * 2;
-    n.jy = Math.random() * Math.PI * 2;
-    n.pulsePhase = Math.random() * Math.PI * 2;
-  });
-
-  function ease(t) { return 1 - Math.pow(1 - t, 3); }
-
-  function unitToPx(ux, uy) {
-    // brain sits right-of-center, leaving room for the left column; uy=0 is
-    // the dais, uy=1 is the canopy top. Span raised from 0.34/0.70 -- a live
-    // screenshot showed the brain occupying a noticeably smaller fraction of
-    // the panel than the reference, which lets it dominate the composition.
-    var cx = W * 0.63;
-    var baseY = H * 0.90;
-    var spanX = W * 0.40;
-    var spanY = H * 0.80;
-    return [cx + ux * spanX, baseY - uy * spanY];
-  }
-
-  var start = performance.now();
-  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  function drawDais(px, py, glow) {
-    ctx.save();
-    for (var i = 0; i < 3; i++) {
-      var rw = (78 + i * 28) * dpr;
-      var rh = rw * 0.22;
-      ctx.beginPath();
-      ctx.ellipse(px, py + 6*dpr, rw, rh, 0, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255,207,107,' + (0.5 - i * 0.14) * glow + ')';
-      ctx.lineWidth = 1.4 * dpr;
-      ctx.stroke();
-    }
-    var glowGrad = ctx.createRadialGradient(px, py, 0, px, py, 110 * dpr);
-    glowGrad.addColorStop(0, 'rgba(255,180,80,' + 0.35 * glow + ')');
-    glowGrad.addColorStop(1, 'transparent');
-    ctx.fillStyle = glowGrad;
-    ctx.beginPath();
-    ctx.ellipse(px, py, 110*dpr, 28*dpr, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-  }
-
-  function frame(now) {
-    var el = now - start;
-    ctx.clearRect(0, 0, W, H);
-
-    var basePx = unitToPx(0, 0);
-    var formProgress = Math.min(1, el / (FORM_DURATION + 600));
-    drawDais(basePx[0], basePx[1], 0.5 + 0.5 * formProgress);
-
-    var pos = new Array(nodes.length);
-    var arrived = new Array(nodes.length);
-    for (var i = 0; i < nodes.length; i++) {
-      var n = nodes[i];
-      var t = reduceMotion ? 1 : Math.max(0, Math.min(1, (el - n.startAt) / n.dur));
-      var e = ease(t);
-      var fx = lerp(n.sx, n.ux, e);
-      var fy = lerp(n.sy, n.uy, e);
-      pos[i] = unitToPx(fx, fy);
-      arrived[i] = t;
-    }
-
-    var settledGlobal = Math.min(1, Math.max(0, (el - FORM_DURATION) / 900));
-
-    ctx.lineCap = 'round';
-    for (var s = 0; s < segs.length; s++) {
-      var A = segs[s].a, B = segs[s].b;
-      var op = Math.min(arrived[A], arrived[B]);
-      if (op <= 0) continue;
-      var nB = nodes[B];
-      ctx.beginPath();
-      ctx.moveTo(pos[A][0], pos[A][1]);
-      ctx.lineTo(pos[B][0], pos[B][1]);
-      ctx.strokeStyle = nB.color;
-      ctx.globalAlpha = op * 0.55;
-      ctx.lineWidth = Math.max(0.55, 1.7 - nB.uy * 0.8) * dpr;
-      ctx.stroke();
-    }
-    ctx.globalAlpha = 1;
-
-    for (var j = 0; j < nodes.length; j++) {
-      var nn = nodes[j];
-      if (arrived[j] <= 0) continue;
-      var p = pos[j];
-      var jitterAmt = settledGlobal * 1.4 * dpr;
-      var jx = Math.sin(el * 0.0011 + nn.jx) * jitterAmt;
-      var jy = Math.cos(el * 0.0013 + nn.jy) * jitterAmt;
-      var pulse = 0.75 + 0.25 * Math.sin(el * 0.0018 + nn.pulsePhase);
-      var r = Math.max(1.1, 2.1 - nn.uy * 0.7) * dpr * pulse;
-
-      // Glow radius/alpha cut down hard from the first pass (was 5x radius
-      // at 0.9 alpha) -- confirmed against the reference that its mesh
-      // reads as fine, crisp star-points with thin lace-like connecting
-      // lines, not soft overlapping blobs. At the real density this cloud
-      // renders at, a 5x/0.9 glow overlapped so much between neighboring
-      // points that it fogged into cloud-like smears instead of individual
-      // stars -- the biggest single reason it read as "not a brain."
-      var glow = ctx.createRadialGradient(p[0]+jx, p[1]+jy, 0, p[0]+jx, p[1]+jy, r * 2.1);
-      glow.addColorStop(0, nn.color);
-      glow.addColorStop(1, 'transparent');
-      ctx.fillStyle = glow;
-      ctx.globalAlpha = arrived[j] * 0.5;
-      ctx.beginPath();
-      ctx.arc(p[0]+jx, p[1]+jy, r * 2.1, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.globalAlpha = arrived[j];
-      ctx.fillStyle = nn.color;
-      ctx.beginPath();
-      ctx.arc(p[0]+jx, p[1]+jy, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.globalAlpha = 1;
-
-    if (!reduceMotion) requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
 })();
+</script>
+
+<script type="module">
+  // The actual 3D neural-particle brain -- a separate module tree
+  // (BrainFormationEngine/NeuralParticleSystem/NeuralNetwork/EnergyPaths/
+  // Pedestal/BrainStateMachine, orchestrated by EmpireBrain), not a 2D
+  // canvas silhouette. See interfaces/web/js/EmpireBrain.js.
+  import { EmpireBrain } from '/web/js/EmpireBrain.js';
+  var container = document.getElementById('brain-container');
+  window.empireBrain = new EmpireBrain(container);
 </script>

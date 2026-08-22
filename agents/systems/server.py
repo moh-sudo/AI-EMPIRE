@@ -12,6 +12,7 @@ load_dotenv()
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from agents.systems.ci_health_monitor import run_ci_health_sweep
 from agents.systems.host_security_scan import run_host_security_sweep
@@ -23,6 +24,12 @@ from shared.systems_db_connector import get_empire_status
 app = FastAPI(title="Systems & Automation Division")
 
 WEB_DIR = Path(__file__).resolve().parent.parent.parent / "interfaces" / "web"
+
+# Serves the Empire Brain's ES module tree (BrainFormationEngine,
+# NeuralParticleSystem, etc.) at /web/js/*.js -- the page's own
+# <script type="module"> imports resolve against this same origin, so no
+# CORS is needed here either, matching /brain and /empire-status below.
+app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
 
 
 @app.get("/brain")
