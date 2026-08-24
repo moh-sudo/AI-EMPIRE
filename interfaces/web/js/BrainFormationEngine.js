@@ -504,7 +504,12 @@ export class BrainFormationEngine {
       // thicker near the trunks (low height above the pedestal), finer
       // toward the cortex -- height-based for the same reason the edge
       // fill above switched from depth: real position, not step count
-      sizes[idx] = THREE.MathUtils.lerp(0.016, 0.0045, heightFrac(p.pos.y)) + Math.random() * 0.003;
+      // Pulled back from 0.016 -- combined with the dense edge-fill sleeve
+      // below and additive blending, that size blew the trunk out to a
+      // solid white mass (see the fragment shader's comment for the full
+      // story). Fixed at both layers: this size, and the shader's capped
+      // per-particle alpha.
+      sizes[idx] = THREE.MathUtils.lerp(0.011, 0.0045, heightFrac(p.pos.y)) + Math.random() * 0.003;
       phases[idx] = Math.random();
       idx++;
     }

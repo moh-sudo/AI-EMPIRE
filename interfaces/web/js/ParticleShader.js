@@ -82,9 +82,18 @@ export const particleFragmentShader = `
     vec2 uv = gl_PointCoord - vec2(0.5);
     float d = length(uv);
     if (d > 0.5) discard;
+    // Real regression found live: increasing particle size/density for the
+    // trunk (to fix "branches too thin") combined with this shader's old
+    // per-particle alpha (core 0.85 + glow 0.5, additively blended) blew
+    // out to a solid white mass wherever particles overlap densely --
+    // exactly the earlier overexposure bug, just triggered from the
+    // opposite direction (density this time, not gl_PointSize). Additive
+    // blending sums without bound, so ANY dense enough cluster clips to
+    // white eventually; the real fix is capping how much each individual
+    // particle can contribute, not chasing density/size numbers forever.
     float core = smoothstep(0.5, 0.0, d);
-    float glow = smoothstep(0.5, 0.15, d) * 0.5;
-    float alpha = (core * 0.85 + glow) * vAlpha;
+    float glow = smoothstep(0.5, 0.15, d) * 0.28;
+    float alpha = (core * 0.55 + glow) * vAlpha;
     gl_FragColor = vec4(vColor, alpha);
   }
 `;

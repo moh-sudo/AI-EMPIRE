@@ -96,7 +96,11 @@ export class EmpireBrain {
     // of the near-black clear color) -- tighter radius and a higher
     // threshold keep it contained to actually-bright points instead of a
     // uniform glow wash.
-    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.4, 0.22, 0.5);
+    // threshold raised again (0.5 -> 0.6) after the trunk-thickness pass
+    // pushed real per-pixel brightness up in that region -- bloom was
+    // compounding on top of an already-oversaturated cluster instead of
+    // just highlighting genuinely bright points.
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(w, h), 0.4, 0.22, 0.6);
     this.composer.addPass(this.bloomPass);
   }
 
