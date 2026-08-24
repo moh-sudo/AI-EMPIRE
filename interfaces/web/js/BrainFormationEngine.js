@@ -1,9 +1,24 @@
-// Procedurally generates the Empire Brain's target geometry: two
-// hemispheres with a real central fissure and organic gyrification, a
-// narrowing brainstem, ambient floating particles, and the short-range +
-// major-pathway connections between them. Nothing here is a 2D silhouette
-// projected flat -- every point is a real 3D position, and the brain reads
-// as anatomical from any camera angle.
+// Procedurally generates the Empire Brain's target geometry using SPACE
+// COLONIZATION -- the standard algorithm for growing organic branching
+// structures (trees, root systems, vasculature) toward a target volume.
+// This replaced an earlier version that scattered particles directly
+// across an anatomical silhouette (a "point cloud shaped like a brain")
+// -- real feedback was that it read as a network filling a region, not a
+// hierarchy of trunks branching into finer and finer pathways. Space
+// colonization gives the real thing: a handful of primary trunks grow
+// from the pedestal, and wherever the pull of nearby unclaimed target
+// points diverges, a trunk genuinely SPLITS into branches, which split
+// again into finer pathways as they approach the dense cortex -- an
+// actual parent/child graph, not particles that merely look networked.
+//
+// The anatomical silhouette itself (hemispheres, central fissure, gyrus
+// folds, tapered brainstem) is unchanged from the previous version and
+// stays -- it's reused here as the CLOUD OF TARGET POINTS branches grow
+// toward, rather than being the final particle positions directly. That
+// silhouette was already tuned through several real bug fixes (funnel
+// taper, missing fissure, flat gyri); keeping it as the growth target
+// carries all of that over instead of re-deriving brain shape from
+// scratch.
 //
 // Deliberately NOT using a general-purpose noise library (simplex/perlin)
 // -- a small sum of sine waves at incommensurate frequencies is cheap,
@@ -12,35 +27,43 @@
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js";
 
-// Division color palette. Real feedback from the first render: one
-// attractor per division with an inverse-SQUARE falloff let the nearest
-// attractor dominate its whole local region almost exclusively (gold
-// reading as a solid, separate "bottom zone" instead of interweaving) --
-// exactly the "compartmentalized" look that was flagged. Fixed two ways:
-// each division now has 2-3 satellite points scattered at different
-// places in the volume (so no single color owns one contiguous region),
-// and the falloff is linear with a much larger epsilon (softer, wider
-// reach per point) instead of inverse-square.
+// Division color palette. Real feedback from two earlier renders: blending
+// ALL 7 by weighted distance (even with a sharp falloff) desaturates
+// toward gray once several divisions contribute comparably, and a pure
+// nearest-attractor pick lets 1-2 geometrically-favored attractors claim
+// most of the volume. Blending only the top-2 nearest attractors at any
+// point fixes both -- verified live via a pixel-hue histogram (see
+// blendedColor below).
+// Real finding from live pixel measurement, and it took two attempts to
+// diagnose correctly: the first guess ("not enough attractor points for
+// the underrepresented divisions") was wrong -- adding a 3rd satellite
+// per division barely moved the numbers. The real cause is spatial: the
+// space-colonization tree's particle MASS is naturally denser near the
+// lower/central confluence zone where all 7 trunks pass through before
+// diverging (tree topology -- shared lower branches carry more edges than
+// the sparse cortex periphery), and rii/systems' attractor points
+// happened to sit closer to that naturally-dense zone than the other 5
+// divisions' points, so they kept winning the top-2 blend regardless of
+// how many satellites anyone had. Fixed by moving rii/systems OUT toward
+// the cortex periphery (where they were always meant to read as
+// electric-blue/cyan highlights, not core mass) and pulling the other 5
+// divisions' points IN toward that dense confluence zone so they compete
+// for it fairly. Orchestrator (gold) is deliberately still anchored there
+// too -- it's the routing/core layer, that's correct for it to dominate
+// the trunk.
 export const DIVISION_COLORS = {
-  rii: { hex: 0x36e0ff, pos: [new THREE.Vector3(-0.32, 0.3, 0.32), new THREE.Vector3(0.25, -0.15, 0.35)] },
-  learning: { hex: 0xc060ff, pos: [new THREE.Vector3(0.34, 0.35, -0.28), new THREE.Vector3(-0.2, -0.3, -0.15)] },
-  fixera: { hex: 0xff9b30, pos: [new THREE.Vector3(-0.38, -0.15, -0.22), new THREE.Vector3(0.15, 0.4, -0.1)] },
-  forex: { hex: 0x33e08a, pos: [new THREE.Vector3(0.4, -0.12, 0.26), new THREE.Vector3(-0.3, 0.2, 0.15)] },
-  systems: { hex: 0x4ea3ff, pos: [new THREE.Vector3(0.0, 0.45, 0.08), new THREE.Vector3(0.3, -0.35, -0.2)] },
-  audit: { hex: 0x8b5cf6, pos: [new THREE.Vector3(0.02, 0.12, -0.42), new THREE.Vector3(-0.15, -0.5, 0.1)] },
+  rii: { hex: 0x36e0ff, pos: [new THREE.Vector3(-0.55, 0.55, 0.4), new THREE.Vector3(0.5, 0.45, 0.4)] },
+  learning: { hex: 0xc060ff, pos: [new THREE.Vector3(0.4, 0.15, -0.35), new THREE.Vector3(-0.1, -0.2, -0.1)] },
+  fixera: { hex: 0xff9b30, pos: [new THREE.Vector3(-0.4, -0.1, -0.15), new THREE.Vector3(0.1, 0.15, -0.05)] },
+  forex: { hex: 0x33e08a, pos: [new THREE.Vector3(0.42, -0.1, 0.25), new THREE.Vector3(-0.15, 0.05, 0.1)] },
+  systems: { hex: 0x4ea3ff, pos: [new THREE.Vector3(0.0, 0.62, 0.05), new THREE.Vector3(0.35, -0.55, -0.3)] },
+  audit: { hex: 0x8b5cf6, pos: [new THREE.Vector3(0.02, 0.1, -0.45), new THREE.Vector3(-0.1, -0.15, 0.05)] },
   orchestrator: {
     hex: 0xffc24b,
-    // still weighted toward the brainstem/core (it's the routing layer),
-    // but with satellites reaching up into both hemispheres so gold
-    // threads through the whole structure, not just the trunk
-    pos: [new THREE.Vector3(0.0, -0.55, 0.0), new THREE.Vector3(-0.15, 0.15, 0.05), new THREE.Vector3(0.18, 0.1, -0.05)],
+    pos: [new THREE.Vector3(0.0, -0.55, 0.0), new THREE.Vector3(-0.1, -0.05, 0.05), new THREE.Vector3(0.1, -0.05, -0.05)],
   },
 };
 
-// Two octaves for broad gyrus bumps, a third, higher-frequency one for
-// finer wrinkle detail -- amplitude raised from the first pass (0.22 max
-// combined) since the folds read as barely-there density noise rather
-// than visible ridges next to the reference.
 function gyrus(d) {
   return (
     0.16 * Math.sin(d.x * 8 + 1.7) * Math.cos(d.y * 10 + 0.4) +
@@ -60,18 +83,6 @@ function fibonacciDir(i, n) {
 const _c1 = new THREE.Color();
 const _c2 = new THREE.Color();
 const _c3 = new THREE.Color();
-// Two real, opposite failures measured live before landing here: blending
-// all 7 divisions by weight (even with a sharp falloff) averages 5 small
-// contributions in with the top 1-2, which desaturates toward gray --
-// confirmed via a pixel-hue histogram showing 44% low-saturation pixels
-// and two whole hues (green, yellow-green) essentially never winning
-// anywhere. And a PURE nearest-attractor pick (epsilon so small it's
-// effectively winner-take-all) let one or two geometrically-favored
-// attractors claim ~90% of the volume by themselves. Blending ONLY the
-// top-2 nearest attractors (not all 7) fixes both: any given point stays
-// visually saturated (never more than 2 hues mixed), while which 2 win
-// changes smoothly across space as you move between real attractor
-// positions -- genuine interweaving without either extreme.
 function blendedColor(worldPos) {
   let best1Key = null,
     best1W = -1,
@@ -101,25 +112,221 @@ function blendedColor(worldPos) {
   return _c3.clone();
 }
 
-const GAP = 0.28; // hemisphere center offset from x=0
-const SEMI = { x: 0.56, y: 0.58, z: 0.5 }; // taller (y raised) -- a real screenshot showed the cortex reading flat/funnel-like, not domed
-const GROOVE = 0.12; // half-width of the enforced central fissure
-const GROOVE_MIN_Y = -0.25; // fissure enforced over a much taller band -- was only near the very top, barely visible
+const GAP = 0.28;
+const SEMI = { x: 0.56, y: 0.58, z: 0.5 };
+const GROOVE = 0.12;
+const GROOVE_MIN_Y = -0.25;
+const STEM_TOP = -0.5;
+const STEM_BOTTOM = -0.95;
+
+/** Builds the cloud of 3D points branches grow toward -- the exact same
+ * hemisphere+fissure+gyrus+brainstem shape as before, just consumed as
+ * growth targets instead of being final particle positions. */
+function buildAttractionPoints(hemisphereCount, brainstemCount) {
+  const attractors = [];
+
+  const perHemisphere = Math.floor(hemisphereCount / 2);
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < perHemisphere; i++) {
+      const d = fibonacciDir(i, perHemisphere);
+      const g = 1 + gyrus(d);
+      let bottomTaper = 1.0;
+      if (d.y < -0.55) bottomTaper = THREE.MathUtils.lerp(1.0, 0.34, THREE.MathUtils.smoothstep(-d.y, 0.55, 1.0));
+      const local = new THREE.Vector3(d.x * SEMI.x * g * bottomTaper, d.y * SEMI.y * g, d.z * SEMI.z * g * bottomTaper);
+      const world = new THREE.Vector3(local.x + side * GAP, local.y + 0.05, local.z);
+      if (world.y > GROOVE_MIN_Y && Math.abs(world.x) < GROOVE) {
+        const sign = world.x >= 0 ? 1 : -1;
+        world.x = sign * GROOVE * (0.6 + Math.random() * 0.5);
+      }
+      attractors.push(world);
+    }
+  }
+
+  let stemIdx = 0;
+  while (stemIdx < brainstemCount) {
+    const t = Math.random();
+    const y = THREE.MathUtils.lerp(STEM_TOP, STEM_BOTTOM, t);
+    const baseRadius = THREE.MathUtils.lerp(0.22, 0.05, Math.pow(t, 1.8));
+    const ang = Math.random() * Math.PI * 2;
+    const irregular = 1 + 0.2 * Math.sin(ang * 5 + t * 7) + 0.12 * Math.cos(ang * 8 - t * 4);
+    const radius = baseRadius * irregular;
+    const rr = radius * Math.sqrt(Math.random());
+    const sway = 0.035 * Math.sin(t * Math.PI * 3.1 + ang) * (1 - t * 0.6);
+    attractors.push(new THREE.Vector3(Math.cos(ang) * rr + sway, y, Math.sin(ang) * rr));
+    stemIdx++;
+  }
+
+  return attractors;
+}
+
+const INFLUENCE_RADIUS = 0.17;
+const KILL_RADIUS = 0.05;
+const STEP_SIZE = 0.03;
+const MAX_ITER = 480;
+const MAX_ACTIVE_TIPS = 260;
+const BRANCH_PROB = 0.045;
+
+function cellKey(cx, cy, cz) {
+  return cx + "_" + cy + "_" + cz;
+}
+function cellOf(v) {
+  return [Math.floor(v.x / INFLUENCE_RADIUS), Math.floor(v.y / INFLUENCE_RADIUS), Math.floor(v.z / INFLUENCE_RADIUS)];
+}
+
+/** Grows a branching tree from 7 seed points near the pedestal toward the
+ * attraction-point cloud, using space colonization: each active tip moves
+ * toward the mean direction of nearby unclaimed points, consuming them as
+ * it passes; when a tip's nearby points pull in genuinely different
+ * directions, it splits into two children instead of averaging them away.
+ * Returns { nodes, edges, rootPaths } -- a real parent/child graph, not a
+ * point cloud with connections bolted on after the fact. */
+function growBranchingTree(attractors) {
+  const grid = new Map();
+  attractors.forEach((pos) => {
+    const [cx, cy, cz] = cellOf(pos);
+    const key = cellKey(cx, cy, cz);
+    if (!grid.has(key)) grid.set(key, []);
+    grid.get(key).push({ pos, consumed: false });
+  });
+
+  function nearbyUnclaimed(pos) {
+    const [cx, cy, cz] = cellOf(pos);
+    const found = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          const bucket = grid.get(cellKey(cx + dx, cy + dy, cz + dz));
+          if (!bucket) continue;
+          for (const ap of bucket) {
+            if (!ap.consumed && pos.distanceTo(ap.pos) < INFLUENCE_RADIUS) found.push(ap);
+          }
+        }
+      }
+    }
+    return found;
+  }
+
+  function meanDirTo(list, from) {
+    const m = new THREE.Vector3();
+    list.forEach((ap) => m.add(ap.pos.clone().sub(from).normalize()));
+    return m.normalize();
+  }
+
+  const nodes = []; // { pos, parent, children: [], depth, genIndex }
+  const SEED_COUNT = 7;
+  let tips = [];
+  for (let i = 0; i < SEED_COUNT; i++) {
+    const ang = (i / SEED_COUNT) * Math.PI * 2;
+    const pos = new THREE.Vector3(Math.cos(ang) * 0.05, STEM_BOTTOM + 0.02, Math.sin(ang) * 0.05);
+    const nodeIdx = nodes.length;
+    nodes.push({ pos: pos.clone(), parent: -1, children: [], depth: 0, genIndex: 0 });
+    tips.push({ pos, dir: new THREE.Vector3(Math.cos(ang) * 0.35, 1, Math.sin(ang) * 0.35).normalize(), nodeIdx });
+  }
+
+  let iter = 0;
+  while (tips.length && iter < MAX_ITER) {
+    iter++;
+    const newTips = [];
+    for (const tip of tips) {
+      const near = nearbyUnclaimed(tip.pos);
+      if (near.length === 0) continue; // this branch terminates -- ran out of pull
+
+      const meanDir = meanDirTo(near, tip.pos);
+      const newDir = tip.dir.clone().multiplyScalar(0.55).add(meanDir.multiplyScalar(0.45)).normalize();
+      newDir.x += (Math.random() - 0.5) * 0.09;
+      newDir.y += (Math.random() - 0.5) * 0.06;
+      newDir.z += (Math.random() - 0.5) * 0.09;
+      newDir.normalize();
+      const newPos = tip.pos.clone().add(newDir.clone().multiplyScalar(STEP_SIZE));
+
+      const parentNode = nodes[tip.nodeIdx];
+      const newIdx = nodes.length;
+      nodes.push({ pos: newPos, parent: tip.nodeIdx, children: [], depth: parentNode.depth + 1, genIndex: iter });
+      parentNode.children.push(newIdx);
+
+      near.forEach((ap) => {
+        if (newPos.distanceTo(ap.pos) < KILL_RADIUS) ap.consumed = true;
+      });
+
+      const canBranch = near.length >= 5 && Math.random() < BRANCH_PROB && tips.length + newTips.length < MAX_ACTIVE_TIPS;
+      if (canBranch) {
+        const splitAxis = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+        const group1 = [],
+          group2 = [];
+        near.forEach((ap) => (ap.pos.clone().sub(newPos).dot(splitAxis) >= 0 ? group1 : group2).push(ap));
+        if (group1.length && group2.length) {
+          newTips.push({ pos: newPos.clone(), dir: meanDirTo(group1, newPos), nodeIdx: newIdx });
+          newTips.push({ pos: newPos.clone(), dir: meanDirTo(group2, newPos), nodeIdx: newIdx });
+          continue;
+        }
+      }
+      newTips.push({ pos: newPos, dir: newDir, nodeIdx: newIdx });
+    }
+    tips = newTips;
+  }
+
+  const edges = [];
+  nodes.forEach((n, i) => {
+    if (n.parent >= 0) edges.push({ a: n.parent, b: i });
+  });
+
+  // real root-to-leaf paths for EnergyPaths' major pathways: the longest
+  // chains in the tree, genuinely walking parent links the whole way
+  const leaves = nodes.map((n, i) => i).filter((i) => nodes[i].children.length === 0);
+  leaves.sort((a, b) => nodes[b].depth - nodes[a].depth);
+  const rootPaths = leaves.slice(0, 9).map((leafIdx) => {
+    const chain = [];
+    let cur = leafIdx;
+    while (cur >= 0) {
+      chain.push(cur);
+      cur = nodes[cur].parent;
+    }
+    return chain.reverse();
+  });
+
+  return { nodes, edges, rootPaths };
+}
 
 export class BrainFormationEngine {
-  constructor({ hemisphereCount = 7000, brainstemCount = 1400, ambientCount = 500 } = {}) {
+  constructor({ hemisphereCount = 5200, brainstemCount = 1100, ambientCount = 480 } = {}) {
     this.hemisphereCount = hemisphereCount;
     this.brainstemCount = brainstemCount;
     this.ambientCount = ambientCount;
     this.pedestalOrbitCount = 220;
-    this.total = hemisphereCount + brainstemCount + ambientCount + this.pedestalOrbitCount;
   }
 
-  /** Returns typed arrays ready for NeuralParticleSystem, plus the raw
-   * point list (with real 3D positions) for NeuralNetwork/EnergyPaths to
-   * build connections from. */
   generate() {
-    const n = this.total;
+    const attractors = buildAttractionPoints(this.hemisphereCount, this.brainstemCount);
+    const { nodes, edges, rootPaths } = growBranchingTree(attractors);
+
+    // Each tree node becomes a particle; the deepest generation index sets
+    // the formation-timing scale (real growth order -> real stagger, not a
+    // hand-authored percentage table).
+    const maxGen = nodes.reduce((m, n) => Math.max(m, n.genIndex), 1);
+
+    // A tree node's own position, plus a couple of extra fill particles
+    // jittered slightly off each edge -- "hundreds of particles per
+    // trunk" instead of a single-particle-wide line, denser near the
+    // root (shallow depth) where real trunks are thick, thinner toward
+    // the leaves where real neural filaments are fine.
+    const FILL_PER_EDGE_NEAR_ROOT = 3;
+    const perNode = [];
+    nodes.forEach((n) => perNode.push({ pos: n.pos, genIndex: n.genIndex, depth: n.depth, isFill: false }));
+    edges.forEach((e) => {
+      const a = nodes[e.a],
+        b = nodes[e.b];
+      const fillCount = Math.max(1, Math.round(FILL_PER_EDGE_NEAR_ROOT * (1 - Math.min(1, b.depth / 30))));
+      for (let f = 0; f < fillCount; f++) {
+        const t = (f + 1) / (fillCount + 1);
+        const p = a.pos.clone().lerp(b.pos, t);
+        const perp = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.012);
+        p.add(perp);
+        perNode.push({ pos: p, genIndex: THREE.MathUtils.lerp(a.genIndex, b.genIndex, t), depth: b.depth, isFill: true });
+      }
+    });
+
+    const totalStructural = perNode.length;
+    const n = totalStructural + this.ambientCount + this.pedestalOrbitCount;
     const starts = new Float32Array(n * 3);
     const targets = new Float32Array(n * 3);
     const colors = new Float32Array(n * 3);
@@ -127,12 +334,9 @@ export class BrainFormationEngine {
     const durations = new Float32Array(n);
     const sizes = new Float32Array(n);
     const phases = new Float32Array(n);
-    const orbitRadius = new Float32Array(n); // 0 = not an orbit particle
+    const orbitRadius = new Float32Array(n);
     const orbitY = new Float32Array(n);
     const orbitSpeed = new Float32Array(n);
-
-    const points = []; // { target: Vector3, isBrainstem, isAmbient }
-    let idx = 0;
 
     const SCATTER_RADIUS = 2.4;
     const randomScatterPoint = () => {
@@ -141,123 +345,35 @@ export class BrainFormationEngine {
       return v;
     };
 
-    // ---- hemispheres ----
-    const perHemisphere = Math.floor(this.hemisphereCount / 2);
-    for (const side of [-1, 1]) {
-      for (let i = 0; i < perHemisphere; i++) {
-        const d = fibonacciDir(i, perHemisphere);
-        const g = 1 + gyrus(d);
-        // Real shape bug found from a live screenshot: tapering the whole
-        // bottom HALF (d.y<0) down to 0.5 width made the hemisphere and the
-        // brainstem below it blend into one continuous, monotonic taper --
-        // reading as a funnel/cone, not "round cortex sitting above a
-        // distinct narrow stem". Fixed by keeping the hemisphere round and
-        // full through most of its lower half, and only pinching sharply
-        // in the last stretch near its true bottom -- a real "neck" the
-        // brainstem's own separate, much-smaller top radius then continues
-        // from, instead of a smooth continuous cone.
-        let bottomTaper = 1.0;
-        if (d.y < -0.55) bottomTaper = THREE.MathUtils.lerp(1.0, 0.34, THREE.MathUtils.smoothstep(-d.y, 0.55, 1.0));
-
-        const local = new THREE.Vector3(d.x * SEMI.x * g * bottomTaper, d.y * SEMI.y * g, d.z * SEMI.z * g * bottomTaper);
-        const world = new THREE.Vector3(local.x + side * GAP, local.y + 0.05, local.z);
-
-        // enforce the central fissure: push points out of the groove band
-        // in the upper region only, matching how a real longitudinal
-        // fissure doesn't reach the brain's base.
-        if (world.y > GROOVE_MIN_Y && Math.abs(world.x) < GROOVE) {
-          const sign = world.x >= 0 ? 1 : -1;
-          world.x = sign * GROOVE * (0.6 + Math.random() * 0.5);
-        }
-
-        const target = world;
-        const start = randomScatterPoint();
-        const color = blendedColor(target);
-
-        starts[idx * 3] = start.x;
-        starts[idx * 3 + 1] = start.y;
-        starts[idx * 3 + 2] = start.z;
-        targets[idx * 3] = target.x;
-        targets[idx * 3 + 1] = target.y;
-        targets[idx * 3 + 2] = target.z;
-        colors[idx * 3] = color.r;
-        colors[idx * 3 + 1] = color.g;
-        colors[idx * 3 + 2] = color.b;
-
-        // formation order: near the brainstem connection (low world y)
-        // arrives earlier than the outer skull (high world y) -- "clusters
-        // form, then hemispheres, then the full structure" per the brief.
-        const heightFrac = THREE.MathUtils.clamp((world.y + 0.5) / 1.1, 0, 1);
-        startTimes[idx] = 0.3 + 0.65 * heightFrac + Math.random() * 0.05;
-        durations[idx] = 0.14 + Math.random() * 0.12;
-        // world-space diameter, converted to real screen pixels by
-        // uSizeAttenuation in the shader -- see ParticleShader.js's comment
-        sizes[idx] = 0.006 + Math.random() * 0.007;
-        phases[idx] = Math.random();
-
-        points.push({ target, isBrainstem: false, isAmbient: false, index: idx });
-        idx++;
-      }
-    }
-
-    // ---- brainstem: real feedback was that this read as a straight funnel
-    // separate from the brain rather than an organic extension of it.
-    // Fixed three ways: stemTop now roughly matches the hemisphere neck's
-    // own pinched width (continuity, not a sudden jump to a thin cone),
-    // the taper curve (pow 1.8, not 1.3) stays wide longer near the top
-    // and narrows late rather than shrinking evenly the whole way down,
-    // and the cross-section gets angular+height-dependent noise so it's
-    // not a perfect circle at any height -- an irregular, organic column.
-    const stemTop = -0.5,
-      stemBottom = -0.95;
-    const stemSteps = 46;
-    let stemIdx = 0;
-    while (stemIdx < this.brainstemCount) {
-      const t = Math.random(); // 0 = top (wide), 1 = bottom (narrow)
-      const y = THREE.MathUtils.lerp(stemTop, stemBottom, t);
-      const baseRadius = THREE.MathUtils.lerp(0.22, 0.05, Math.pow(t, 1.8));
-      const ang = Math.random() * Math.PI * 2;
-      const irregular = 1 + 0.2 * Math.sin(ang * 5 + t * 7) + 0.12 * Math.cos(ang * 8 - t * 4);
-      const radius = baseRadius * irregular;
-      const rr = radius * Math.sqrt(Math.random());
-      const sway = 0.035 * Math.sin(t * Math.PI * 3.1 + ang) * (1 - t * 0.6);
-      const target = new THREE.Vector3(Math.cos(ang) * rr + sway, y, Math.sin(ang) * rr);
+    let idx = 0;
+    for (const p of perNode) {
       const start = randomScatterPoint();
-      const color = blendedColor(target);
-
+      const color = blendedColor(p.pos);
       starts[idx * 3] = start.x;
       starts[idx * 3 + 1] = start.y;
       starts[idx * 3 + 2] = start.z;
-      targets[idx * 3] = target.x;
-      targets[idx * 3 + 1] = target.y;
-      targets[idx * 3 + 2] = target.z;
+      targets[idx * 3] = p.pos.x;
+      targets[idx * 3 + 1] = p.pos.y;
+      targets[idx * 3 + 2] = p.pos.z;
       colors[idx * 3] = color.r;
       colors[idx * 3 + 1] = color.g;
       colors[idx * 3 + 2] = color.b;
 
-      startTimes[idx] = 0.05 * t + Math.random() * 0.15;
-      durations[idx] = 0.12 + Math.random() * 0.1;
-      sizes[idx] = 0.005 + Math.random() * 0.006;
+      // real growth order drives formation timing: low genIndex (near the
+      // pedestal, grown first) arrives early, high genIndex (deep cortex,
+      // grown last) arrives late -- the brain visibly builds itself
+      // outward from the roots, matching the requested 0->100% sequence
+      // without a hand-authored stage table.
+      const genFrac = p.genIndex / maxGen;
+      startTimes[idx] = genFrac * 0.85 + Math.random() * 0.04;
+      durations[idx] = 0.1 + Math.random() * 0.08;
+      // thicker near the trunks (shallow depth), finer toward the cortex
+      sizes[idx] = THREE.MathUtils.lerp(0.011, 0.0045, Math.min(1, p.depth / 24)) + Math.random() * 0.003;
       phases[idx] = Math.random();
-
-      points.push({ target, isBrainstem: true, isAmbient: false, index: idx });
       idx++;
-      stemIdx++;
     }
-    void stemSteps; // kept for documentation of intended density; loop is count-driven
 
-    // ---- ambient floating particles surrounding the structure (Layer 5) ----
     for (let i = 0; i < this.ambientCount; i++) {
-      // ambient particles wander loosely near the brain rather than
-      // forming a hard structure -- their formation target IS a resting
-      // wander-center, reusing the shader's generic lerp(start,target).
-      // x range found live to be too wide: at the group's own +0.55 world
-      // offset, a symmetric +-1.1 let ambient particles wander left past
-      // the brain entirely and into the left card column's screen space
-      // (confirmed via gl.readPixels showing lit pixels as far left as
-      // x=106px on an 828px canvas, well inside the ~276px-wide card
-      // zone). Biased right and narrowed so ambient particles stay around
-      // the brain instead of drifting into the UI.
       const wanderCenter = new THREE.Vector3(
         THREE.MathUtils.lerp(-0.35, 0.95, Math.random()),
         (Math.random() - 0.5) * 1.6 - 0.1,
@@ -265,7 +381,6 @@ export class BrainFormationEngine {
       );
       const start = randomScatterPoint();
       const color = blendedColor(wanderCenter);
-
       starts[idx * 3] = start.x;
       starts[idx * 3 + 1] = start.y;
       starts[idx * 3 + 2] = start.z;
@@ -275,23 +390,18 @@ export class BrainFormationEngine {
       colors[idx * 3] = color.r;
       colors[idx * 3 + 1] = color.g;
       colors[idx * 3 + 2] = color.b;
-
       startTimes[idx] = Math.random() * 0.6;
       durations[idx] = 0.3 + Math.random() * 0.3;
       sizes[idx] = 0.004 + Math.random() * 0.005;
       phases[idx] = Math.random();
-
-      points.push({ target: wanderCenter, isBrainstem: false, isAmbient: true, index: idx });
       idx++;
     }
 
-    // ---- pedestal orbit particles ----
     for (let i = 0; i < this.pedestalOrbitCount; i++) {
       const radius = 0.35 + Math.random() * 0.32;
-      const y = stemBottom - 0.03 + Math.random() * 0.02;
+      const y = STEM_BOTTOM - 0.03 + Math.random() * 0.02;
       const start = randomScatterPoint();
-      const color = blendedColor(new THREE.Vector3(0, stemBottom, 0));
-
+      const color = blendedColor(new THREE.Vector3(0, STEM_BOTTOM, 0));
       starts[idx * 3] = start.x;
       starts[idx * 3 + 1] = start.y;
       starts[idx * 3 + 2] = start.z;
@@ -301,7 +411,6 @@ export class BrainFormationEngine {
       colors[idx * 3] = color.r;
       colors[idx * 3 + 1] = color.g;
       colors[idx * 3 + 2] = color.b;
-
       startTimes[idx] = 0.5 + Math.random() * 0.3;
       durations[idx] = 0.15 + Math.random() * 0.1;
       sizes[idx] = 0.005 + Math.random() * 0.004;
@@ -309,7 +418,6 @@ export class BrainFormationEngine {
       orbitRadius[idx] = radius;
       orbitY[idx] = y;
       orbitSpeed[idx] = 0.15 + Math.random() * 0.2;
-
       idx++;
     }
 
@@ -325,9 +433,15 @@ export class BrainFormationEngine {
       orbitRadius,
       orbitY,
       orbitSpeed,
-      points, // for NeuralNetwork / EnergyPaths connection-building (excludes orbit/ambient by convention -- callers filter as needed)
-      stemTop,
-      stemBottom,
+      // real tree structure for NeuralNetwork (renders every edge
+      // directly -- no nearest-neighbor guessing) and EnergyPaths (walks
+      // real root-to-leaf chains for major pathways)
+      treeNodes: nodes,
+      treeEdges: edges,
+      rootPaths,
+      maxGen,
+      stemTop: STEM_TOP,
+      stemBottom: STEM_BOTTOM,
     };
   }
 }

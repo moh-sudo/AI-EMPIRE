@@ -1,73 +1,30 @@
-// Layer 3 (major pathways) + Layer 4 (traveling pulses). Picks a handful
-// of real, far-apart structural particles and threads a tube through
-// nearby real points between them, so these read as thicker "trunk lines"
-// of the same neural mesh rather than arbitrary decoration -- then a
-// small number of bright points travel along each path continuously,
-// reusing the same connection shader as NeuralNetwork (a path is just a
-// thicker, always-visible connection, not a different kind of object).
+// Layer 3 (major pathways) + Layer 4 (traveling pulses that branch at real
+// junctions). BrainFormationEngine's space-colonization growth already
+// produces real root-to-leaf chains (rootPaths) -- the longest, deepest
+// branches in the tree, walking actual parent links the whole way. Using
+// those directly means these pathways are guaranteed to thread through
+// real particle density (they ARE the particles' own connective tissue),
+// not a synthetic curve fitted between two far-apart points afterward.
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js";
 import { lineVertexShader, lineFragmentShader } from "./NeuralShader.js";
 
-// Reduced from 11 -- feedback was that major pathways should read as
-// sparse and distinct, not roughly as numerous as the medium tier.
-const PATH_COUNT = 7;
 const PULSES_PER_PATH = 1;
 
 export class EnergyPaths {
   constructor(formationData) {
-    const { points, colors } = formationData;
+    const { treeNodes, rootPaths, colors } = formationData;
     this.curves = [];
     this.pulseSpeeds = [];
 
-    const structural = points.filter((p) => !p.isAmbient);
-
-    // Real bug found from a live screenshot: the old midpoint was the
-    // straight a-b line's center plus a small random jitter (+-0.15) --
-    // for genuinely far-apart points (>0.55 apart in a ~1-2 unit volume),
-    // that jitter is tiny relative to the distance, so the curve barely
-    // deviated from a straight line and several paths visibly cut across
-    // empty exterior space like stray scratches, disconnected from the
-    // particle mass. Fixed by snapping each intermediate control point to
-    // the NEAREST REAL structural particle to that interpolated position,
-    // so the curve actually threads through real density the whole way,
-    // matching this class's own original intent (see the file comment).
-    const nearestTo = (pos) => {
-      let best = null,
-        bestD = Infinity;
-      for (const p of structural) {
-        const d = pos.distanceToSquared(p.target);
-        if (d < bestD) {
-          bestD = d;
-          best = p;
-        }
-      }
-      return best;
-    };
-
-    for (let i = 0; i < PATH_COUNT; i++) {
-      const a = structural[Math.floor(Math.random() * structural.length)];
-      // a point reasonably far from `a` but not the most extreme outlier
-      // in the whole volume, so paths stay plausible rather than reaching
-      // corner-to-corner across the structure
-      let b = a;
-      for (let tries = 0; tries < 20; tries++) {
-        const candidate = structural[Math.floor(Math.random() * structural.length)];
-        const d = candidate.target.distanceTo(a.target);
-        if (d > 0.5 && d < 1.0) {
-          b = candidate;
-          break;
-        }
-      }
-
-      const rawMid1 = a.target.clone().lerp(b.target, 0.33);
-      const rawMid2 = a.target.clone().lerp(b.target, 0.66);
-      const mid1 = nearestTo(rawMid1).target;
-      const mid2 = nearestTo(rawMid2).target;
-
-      const curve = new THREE.CatmullRomCurve3([a.target.clone(), mid1.clone(), mid2.clone(), b.target.clone()]);
-      this.curves.push({ curve, colorA: this._colorAt(a.index, colors), colorB: this._colorAt(b.index, colors) });
-      this.pulseSpeeds.push(0.08 + Math.random() * 0.1);
+    for (const chain of rootPaths) {
+      if (chain.length < 3) continue;
+      const pts = chain.map((i) => treeNodes[i].pos.clone());
+      const curve = new THREE.CatmullRomCurve3(pts);
+      const rootIdx = chain[0],
+        leafIdx = chain[chain.length - 1];
+      this.curves.push({ curve, colorA: this._colorAt(rootIdx, colors), colorB: this._colorAt(leafIdx, colors) });
+      this.pulseSpeeds.push(0.06 + Math.random() * 0.08);
     }
 
     this._buildTubes();
@@ -84,7 +41,7 @@ export class EnergyPaths {
     const starts = [];
     const durations = [];
     const weights = [];
-    const SEGMENTS = 24;
+    const SEGMENTS = 32;
 
     this.curves.forEach(({ curve, colorA, colorB }, pathIdx) => {
       const pts = curve.getPoints(SEGMENTS);
@@ -95,12 +52,9 @@ export class EnergyPaths {
         const c0 = colorA.clone().lerp(colorB, t0);
         const c1 = colorA.clone().lerp(colorB, t1);
         lineColors.push(c0.r, c0.g, c0.b, c1.r, c1.g, c1.b);
-        // major pathways only become visible late in formation, once the
-        // structure they connect has already mostly arrived
-        const start = 0.72 + (pathIdx % 5) * 0.02;
+        const start = 0.78 + (pathIdx % 5) * 0.015;
         starts.push(start, start);
-        durations.push(0.18, 0.18);
-        // brightest tier -- above NeuralNetwork's medium weight of 1.0
+        durations.push(0.15, 0.15);
         weights.push(1.6, 1.6);
       }
     });
@@ -112,7 +66,7 @@ export class EnergyPaths {
     geometry.setAttribute("aLineDuration", new THREE.BufferAttribute(new Float32Array(durations), 1));
     geometry.setAttribute("aWeight", new THREE.BufferAttribute(new Float32Array(weights), 1));
 
-    this.uniforms = { uFormProgress: { value: 0 }, uOpacity: { value: 0.75 } };
+    this.uniforms = { uFormProgress: { value: 0 }, uOpacity: { value: 0.8 } };
     const material = new THREE.ShaderMaterial({
       vertexShader: lineVertexShader,
       fragmentShader: lineFragmentShader,
@@ -126,13 +80,13 @@ export class EnergyPaths {
 
   _buildPulses() {
     const count = this.curves.length * PULSES_PER_PATH;
-    const positions = new Float32Array(count * 3);
-    const pulseColors = new Float32Array(count * 3);
+    const positions = new Float32Array(Math.max(count, 1) * 3);
+    const pulseColors = new Float32Array(Math.max(count, 1) * 3);
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute("color", new THREE.BufferAttribute(pulseColors, 3));
     const material = new THREE.PointsMaterial({
-      size: 0.035,
+      size: 0.04,
       vertexColors: true,
       transparent: true,
       opacity: 0,
@@ -145,9 +99,10 @@ export class EnergyPaths {
 
   update(time, formProgress) {
     this.uniforms.uFormProgress.value = formProgress;
+    if (!this.curves.length) return;
     const posAttr = this.pulses.geometry.getAttribute("position");
     const colorAttr = this.pulses.geometry.getAttribute("color");
-    this._pulseMaterial.opacity = THREE.MathUtils.smoothstep(formProgress, 0.75, 0.95) * 0.9;
+    this._pulseMaterial.opacity = THREE.MathUtils.smoothstep(formProgress, 0.8, 0.97) * 0.9;
 
     this.curves.forEach(({ curve, colorA, colorB }, i) => {
       const t = (time * this.pulseSpeeds[i] + i * 0.31) % 1;
