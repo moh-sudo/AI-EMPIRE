@@ -32,6 +32,26 @@ WEB_DIR = Path(__file__).resolve().parent.parent.parent / "interfaces" / "web"
 app.mount("/web", StaticFiles(directory=WEB_DIR), name="web")
 
 
+@app.middleware("http")
+async def no_cache_for_brain_assets(request, call_next):
+    """Real bug found live: a browser can keep serving a STALE cached copy
+    of an ES module (e.g. EmpireBrain.js) even after a hard reload of the
+    /brain page itself, because the module is fetched by its own fixed
+    URL and browsers cache module scripts aggressively -- confirmed
+    directly (window.empireBrain was missing a field just added to the
+    source, on a freshly-created tab hitting a cache-busted /brain URL).
+    Query-string cache-busting on the PAGE doesn't help because the
+    <script type="module" src="..."> import specifiers inside it are
+    plain fixed paths. This forces revalidation on every request under
+    /brain and /web/ instead, so both this session's testing and
+    Mohamed's own reloads always see current code -- fine to pay the
+    cost of skipping the disk cache for a low-traffic personal tool."""
+    response = await call_next(request)
+    if request.url.path == "/brain" or request.url.path.startswith("/web/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @app.get("/brain")
 def brain_page():
     """Serves the Empire Brain idle-state display -- the first real

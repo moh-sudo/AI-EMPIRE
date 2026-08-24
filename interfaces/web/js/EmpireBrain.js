@@ -112,6 +112,7 @@ export class EmpireBrain {
   _buildBrain() {
     this.formationEngine = new BrainFormationEngine({});
     const data = this.formationEngine.generate();
+    this.formationData = data; // kept for debugging/verification and future reuse (e.g. division totems)
 
     this.particleSystem = new NeuralParticleSystem(data);
     this.neuralNetwork = new NeuralNetwork(data);

@@ -281,11 +281,32 @@ function growBranchingTree(attractors) {
       const near = nearbyUnclaimed(tip.pos);
       if (near.length === 0) continue; // this branch terminates -- ran out of pull
 
+      // Real bug found from a live screenshot ("veins rising from the
+      // bottom look disorganized"): a fixed jitter amount every step
+      // looks fine once branches have spread out into the wide cortex,
+      // but right at the base, where all 7 trunks start in a tiny 0.05-
+      // radius cluster, that same absolute wobble is huge relative to the
+      // local scale -- it read as a tangled knot instead of primary
+      // trunks rising with purpose. Real anatomy backs this too: trunks
+      // are direct near their origin and only start wandering organically
+      // once they've spread and begun branching. Both the jitter amount
+      // and how much a tip commits to its own momentum (vs. the pull of
+      // nearby points) now ramp in with depth instead of being constant
+      // from the very first step.
+      const depth = nodes[tip.nodeIdx].depth;
+      const organicRamp = THREE.MathUtils.smoothstep(depth, 0, 16); // 0 near the base, 1 by depth 16
+      const jitterScale = THREE.MathUtils.lerp(0.15, 1.0, organicRamp);
+      const momentumWeight = THREE.MathUtils.lerp(0.82, 0.55, organicRamp);
+
       const meanDir = meanDirTo(near, tip.pos);
-      const newDir = tip.dir.clone().multiplyScalar(0.55).add(meanDir.multiplyScalar(0.45)).normalize();
-      newDir.x += (Math.random() - 0.5) * 0.09;
-      newDir.y += (Math.random() - 0.5) * 0.06;
-      newDir.z += (Math.random() - 0.5) * 0.09;
+      const newDir = tip.dir
+        .clone()
+        .multiplyScalar(momentumWeight)
+        .add(meanDir.multiplyScalar(1 - momentumWeight))
+        .normalize();
+      newDir.x += (Math.random() - 0.5) * 0.09 * jitterScale;
+      newDir.y += (Math.random() - 0.5) * 0.06 * jitterScale;
+      newDir.z += (Math.random() - 0.5) * 0.09 * jitterScale;
       newDir.normalize();
       const newPos = tip.pos.clone().add(newDir.clone().multiplyScalar(STEP_SIZE));
 
