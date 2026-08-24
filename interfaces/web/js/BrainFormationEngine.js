@@ -140,9 +140,17 @@ function lineageColor(divisionKey, pos) {
   return _c4.clone().lerp(geo, 0.22);
 }
 
-const GAP = 0.28;
-const SEMI = { x: 0.56, y: 0.58, z: 0.5 };
-const GROOVE = 0.12;
+// Real shape bug found from a live screenshot: with GAP=0.28 and each
+// hemisphere's own x-radius at 0.56, the two ellipsoids overlapped by
+// more than half their width -- next to nothing but the thin fissure
+// carve separated them, so the combined silhouette read as one wide,
+// fairly flat-topped mass instead of two distinct rounded domes.
+// Widened the gap and narrowed each lobe's own radius so they read as
+// genuinely separate shapes, and made each lobe taller/rounder (raised
+// SEMI.y) so the top curves distinctly instead of looking flat.
+const GAP = 0.42;
+const SEMI = { x: 0.46, y: 0.64, z: 0.48 };
+const GROOVE = 0.15;
 const GROOVE_MIN_Y = -0.25;
 const STEM_TOP = -0.5;
 const STEM_BOTTOM = -0.95;
@@ -158,10 +166,22 @@ function buildAttractionPoints(hemisphereCount, brainstemCount) {
     for (let i = 0; i < perHemisphere; i++) {
       const d = fibonacciDir(i, perHemisphere);
       const g = 1 + gyrus(d);
+      // bottomTaper shrinks each lobe's own RADIUS near its base, but its
+      // ellipsoid CENTER stays fixed at x=side*GAP regardless -- with the
+      // wider GAP above, that would leave two separate necks side by side
+      // (x~=+-0.42) instead of one shared brainstem connection. centerPull
+      // additionally slides the whole point toward x=0 as the taper
+      // deepens, so both lobes' necks actually converge to a single point
+      // by the time they reach the brainstem, not two parallel stems.
       let bottomTaper = 1.0;
-      if (d.y < -0.55) bottomTaper = THREE.MathUtils.lerp(1.0, 0.34, THREE.MathUtils.smoothstep(-d.y, 0.55, 1.0));
+      let centerPull = 0.0;
+      if (d.y < -0.55) {
+        const tt = THREE.MathUtils.smoothstep(-d.y, 0.55, 1.0);
+        bottomTaper = THREE.MathUtils.lerp(1.0, 0.34, tt);
+        centerPull = tt;
+      }
       const local = new THREE.Vector3(d.x * SEMI.x * g * bottomTaper, d.y * SEMI.y * g, d.z * SEMI.z * g * bottomTaper);
-      const world = new THREE.Vector3(local.x + side * GAP, local.y + 0.05, local.z);
+      const world = new THREE.Vector3(local.x + side * GAP * (1 - centerPull), local.y + 0.05, local.z);
       if (world.y > GROOVE_MIN_Y && Math.abs(world.x) < GROOVE) {
         const sign = world.x >= 0 ? 1 : -1;
         world.x = sign * GROOVE * (0.6 + Math.random() * 0.5);
