@@ -112,6 +112,34 @@ function blendedColor(worldPos) {
   return _c3.clone();
 }
 
+// One seed trunk per division, in this fixed order -- see lineageColor
+// below for why this exists.
+export const DIVISION_KEYS = Object.keys(DIVISION_COLORS);
+
+const _c4 = new THREE.Color();
+// Real finding after THREE separate attempts to fix color balance purely
+// by repositioning attractor points: the persistent blue-cyan dominance
+// wasn't a geometry problem at all -- it's that blendedColor() picks a
+// color from GLOBAL PROXIMITY, and the space-colonization tree's particle
+// MASS is not evenly distributed in space (tree topology concentrates
+// more edges near the shared lower confluence zone than the sparse
+// cortex periphery), so whichever attractors happen to sit near the
+// naturally-dense region keep winning regardless of where they're placed.
+// No amount of repositioning fixes an emergent density problem.
+//
+// Real fix: stop deriving color from position at all. Each of the 7 seed
+// trunks IS a division (assigned directly, see growBranchingTree), and
+// every descendant inherits its seed's division -- this guarantees an
+// exact 1/7 split by construction, independent of where growth happens to
+// wander. The old geometric field (blendedColor) is kept as a light tint
+// only, so branches that physically cross paths still visibly blend --
+// interweaving without abandoning the guaranteed-fair base assignment.
+function lineageColor(divisionKey, pos) {
+  _c4.setHex(DIVISION_COLORS[divisionKey].hex);
+  const geo = blendedColor(pos);
+  return _c4.clone().lerp(geo, 0.22);
+}
+
 const GAP = 0.28;
 const SEMI = { x: 0.56, y: 0.58, z: 0.5 };
 const GROOVE = 0.12;
@@ -212,14 +240,16 @@ function growBranchingTree(attractors) {
     return m.normalize();
   }
 
-  const nodes = []; // { pos, parent, children: [], depth, genIndex }
-  const SEED_COUNT = 7;
+  const nodes = []; // { pos, parent, children: [], depth, genIndex, division }
+  const SEED_COUNT = DIVISION_KEYS.length;
   let tips = [];
   for (let i = 0; i < SEED_COUNT; i++) {
     const ang = (i / SEED_COUNT) * Math.PI * 2;
     const pos = new THREE.Vector3(Math.cos(ang) * 0.05, STEM_BOTTOM + 0.02, Math.sin(ang) * 0.05);
     const nodeIdx = nodes.length;
-    nodes.push({ pos: pos.clone(), parent: -1, children: [], depth: 0, genIndex: 0 });
+    // one seed = one division's lineage -- see lineageColor's comment for
+    // why this replaces geometric-proximity color assignment
+    nodes.push({ pos: pos.clone(), parent: -1, children: [], depth: 0, genIndex: 0, division: DIVISION_KEYS[i] });
     tips.push({ pos, dir: new THREE.Vector3(Math.cos(ang) * 0.35, 1, Math.sin(ang) * 0.35).normalize(), nodeIdx });
   }
 
@@ -239,9 +269,28 @@ function growBranchingTree(attractors) {
       newDir.normalize();
       const newPos = tip.pos.clone().add(newDir.clone().multiplyScalar(STEP_SIZE));
 
+      // Real bug found from a live screenshot: the fissure was only ever
+      // enforced on the TARGET attraction points, not on the branches
+      // actually growing -- a tip chasing attraction points across the
+      // midline could still wander straight through the gap, so the two
+      // hemispheres never read as visually separate. Enforcing the same
+      // groove here, on the real grown position, closes that gap for the
+      // structure itself, not just for where it's headed.
+      if (newPos.y > GROOVE_MIN_Y && Math.abs(newPos.x) < GROOVE) {
+        const sign = newPos.x >= 0 ? 1 : -1;
+        newPos.x = sign * GROOVE * (0.6 + Math.random() * 0.5);
+      }
+
       const parentNode = nodes[tip.nodeIdx];
       const newIdx = nodes.length;
-      nodes.push({ pos: newPos, parent: tip.nodeIdx, children: [], depth: parentNode.depth + 1, genIndex: iter });
+      nodes.push({
+        pos: newPos,
+        parent: tip.nodeIdx,
+        children: [],
+        depth: parentNode.depth + 1,
+        genIndex: iter,
+        division: parentNode.division,
+      });
       parentNode.children.push(newIdx);
 
       near.forEach((ap) => {
@@ -311,7 +360,7 @@ export class BrainFormationEngine {
     // the leaves where real neural filaments are fine.
     const FILL_PER_EDGE_NEAR_ROOT = 3;
     const perNode = [];
-    nodes.forEach((n) => perNode.push({ pos: n.pos, genIndex: n.genIndex, depth: n.depth, isFill: false }));
+    nodes.forEach((n) => perNode.push({ pos: n.pos, genIndex: n.genIndex, depth: n.depth, division: n.division }));
     edges.forEach((e) => {
       const a = nodes[e.a],
         b = nodes[e.b];
@@ -321,7 +370,8 @@ export class BrainFormationEngine {
         const p = a.pos.clone().lerp(b.pos, t);
         const perp = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.012);
         p.add(perp);
-        perNode.push({ pos: p, genIndex: THREE.MathUtils.lerp(a.genIndex, b.genIndex, t), depth: b.depth, isFill: true });
+        // a and b are always the same lineage -- edges never span divisions
+        perNode.push({ pos: p, genIndex: THREE.MathUtils.lerp(a.genIndex, b.genIndex, t), depth: b.depth, division: b.division });
       }
     });
 
@@ -348,7 +398,7 @@ export class BrainFormationEngine {
     let idx = 0;
     for (const p of perNode) {
       const start = randomScatterPoint();
-      const color = blendedColor(p.pos);
+      const color = lineageColor(p.division, p.pos);
       starts[idx * 3] = start.x;
       starts[idx * 3 + 1] = start.y;
       starts[idx * 3 + 2] = start.z;
