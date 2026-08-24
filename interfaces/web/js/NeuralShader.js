@@ -35,6 +35,17 @@ export const lineFragmentShader = `
   varying float vWeight;
 
   void main() {
-    gl_FragColor = vec4(vColor * (0.7 + vWeight * 0.5), vAlpha * uOpacity * vWeight);
+    // Real bug found from a live screenshot: the old formula
+    // (vColor * (0.7 + weight*0.5)) multiplies color channels by up to
+    // 1.5x for high-weight edges -- most division hex colors already have
+    // one or two near-maxed channels, so that pushed them straight to
+    // clipped white. That's exactly why the major pathways (highest
+    // weight) rendered as a stark white wireframe instead of showing
+    // their real color. Capped at 1.0 so it can only ever desaturate
+    // low-weight filaments toward black, never blow high-weight ones out
+    // to white; opacity (not color) carries the "how prominent" signal.
+    float brightness = clamp(0.45 + vWeight * 0.35, 0.0, 1.0);
+    float alpha = vAlpha * uOpacity * clamp(vWeight, 0.0, 1.0);
+    gl_FragColor = vec4(vColor * brightness, alpha);
   }
 `;

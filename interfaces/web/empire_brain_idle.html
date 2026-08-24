@@ -61,10 +61,11 @@
     position: relative;
     /* bounded by viewport WIDTH and HEIGHT both -- aspect-ratio alone let the
        panel grow taller than the viewport and get cut off/force a scrollbar,
-       confirmed live in a real screenshot. 115vh = 92vh converted through the
-       5:4 ratio, so height never exceeds 92% of whatever viewport this
-       actually renders in. */
-    width: min(96vw, 1180px, 115vh);
+       confirmed live in a real screenshot. 119vh = 95vh converted through
+       the 5:4 ratio, so height never exceeds 95% of whatever viewport this
+       actually renders in. Caps raised (1180->1440px, 92vh->95vh) on
+       request for a bigger, clearer frame on real monitors. */
+    width: min(97vw, 1440px, 119vh);
     aspect-ratio: 5 / 4;
     border-radius: 18px;
     overflow: hidden;
