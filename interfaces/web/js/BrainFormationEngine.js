@@ -155,6 +155,15 @@ const GROOVE_MIN_Y = -0.25;
 const STEM_TOP = -0.5;
 const STEM_BOTTOM = -0.95;
 
+// Shared with NeuralNetwork.js so line weight and particle-fill thickness
+// taper the same way, by the same real height range -- see generate()'s
+// heightFrac for why this replaced a growth-step-count (depth) taper.
+export const HEIGHT_MIN = STEM_BOTTOM;
+export const HEIGHT_MAX = 0.85;
+export function heightFrac(y) {
+  return THREE.MathUtils.clamp((y - HEIGHT_MIN) / (HEIGHT_MAX - HEIGHT_MIN), 0, 1);
+}
+
 /** Builds the cloud of 3D points branches grow toward -- the exact same
  * hemisphere+fissure+gyrus+brainstem shape as before, just consumed as
  * growth targets instead of being final particle positions. */
@@ -394,23 +403,57 @@ export class BrainFormationEngine {
     // hand-authored percentage table).
     const maxGen = nodes.reduce((m, n) => Math.max(m, n.genIndex), 1);
 
-    // A tree node's own position, plus a couple of extra fill particles
-    // jittered slightly off each edge -- "hundreds of particles per
-    // trunk" instead of a single-particle-wide line, denser near the
-    // root (shallow depth) where real trunks are thick, thinner toward
-    // the leaves where real neural filaments are fine.
-    const FILL_PER_EDGE_NEAR_ROOT = 3;
+    // Real limitation found live: WebGL line segments render at a fixed
+    // ~1px width on this platform no matter how a shader weights their
+    // brightness -- there is no such thing as a "thick line" through
+    // LineSegments here. Real thickness has to come from the PARTICLES
+    // themselves: a wide, dense sleeve of fill particles wrapped radially
+    // around each edge reads as a solid glowing tube, the way the
+    // reference's primary trunks do, tapering down to a thin filament of
+    // particles for fine cortex-level edges.
+    //
+    // This was FIRST tried scaling by node.depth (growth-step count from
+    // root), and it was a real bug: depth ranges up to ~480 on a long
+    // unbranched chain (space colonization keeps a surviving tip growing
+    // step by step for as long as it keeps finding unclaimed points,
+    // whether or not it ever branches), while the taper divisor assumed a
+    // small range like 24-30. That saturates to "thin" within the first
+    // ~5% of real depth values, so only a handful of nodes near the very
+    // root ever got the thick treatment -- confirmed live: a depth
+    // histogram showed 96% of ~10k tree nodes at depth 30+. Step count
+    // doesn't reliably track "is this visually a trunk or a fine
+    // filament" anyway (a chain can wander for many steps while staying
+    // spatially close to the base). Switched to real HEIGHT above the
+    // pedestal instead -- directly matches the visual intent (thick near
+    // the base, thin near the outer cortex) regardless of how many
+    // growth steps a particular chain happened to take getting there.
     const perNode = [];
     nodes.forEach((n) => perNode.push({ pos: n.pos, genIndex: n.genIndex, depth: n.depth, division: n.division }));
     edges.forEach((e) => {
       const a = nodes[e.a],
         b = nodes[e.b];
-      const fillCount = Math.max(1, Math.round(FILL_PER_EDGE_NEAR_ROOT * (1 - Math.min(1, b.depth / 30))));
+      // Real perf regression measured live: fillCount up to 9 tripled
+      // total particle count (22k -> 63k) and dropped frame time to
+      // 85ms (~12fps). Thickness comes from both count AND per-particle
+      // size/glow radius -- leaning more on size (already boosted, see
+      // the size assignment below) means a smaller count increase still
+      // reads as noticeably thicker without tripling the render cost.
+      const hFrac = heightFrac(b.pos.y);
+      const fillCount = Math.max(1, Math.round(THREE.MathUtils.lerp(5, 1, hFrac)));
+      const sleeveRadius = THREE.MathUtils.lerp(0.05, 0.006, hFrac);
+      const edgeDir = b.pos.clone().sub(a.pos).normalize();
       for (let f = 0; f < fillCount; f++) {
         const t = (f + 1) / (fillCount + 1);
         const p = a.pos.clone().lerp(b.pos, t);
-        const perp = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(0.012);
-        p.add(perp);
+        // a true perpendicular offset (component of a random vector
+        // orthogonal to the edge), not raw XYZ jitter that wastes part of
+        // its radius budget along the edge's own length
+        const rand = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5);
+        const perp = rand.sub(edgeDir.clone().multiplyScalar(rand.dot(edgeDir)));
+        if (perp.lengthSq() > 1e-8) {
+          perp.normalize().multiplyScalar(sleeveRadius * Math.sqrt(Math.random()));
+          p.add(perp);
+        }
         // a and b are always the same lineage -- edges never span divisions
         perNode.push({ pos: p, genIndex: THREE.MathUtils.lerp(a.genIndex, b.genIndex, t), depth: b.depth, division: b.division });
       }
@@ -458,8 +501,10 @@ export class BrainFormationEngine {
       const genFrac = p.genIndex / maxGen;
       startTimes[idx] = genFrac * 0.85 + Math.random() * 0.04;
       durations[idx] = 0.1 + Math.random() * 0.08;
-      // thicker near the trunks (shallow depth), finer toward the cortex
-      sizes[idx] = THREE.MathUtils.lerp(0.011, 0.0045, Math.min(1, p.depth / 24)) + Math.random() * 0.003;
+      // thicker near the trunks (low height above the pedestal), finer
+      // toward the cortex -- height-based for the same reason the edge
+      // fill above switched from depth: real position, not step count
+      sizes[idx] = THREE.MathUtils.lerp(0.016, 0.0045, heightFrac(p.pos.y)) + Math.random() * 0.003;
       phases[idx] = Math.random();
       idx++;
     }

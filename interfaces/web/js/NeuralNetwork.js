@@ -2,11 +2,14 @@
 // BrainFormationEngine's space-colonization growth directly -- no
 // nearest-neighbor guessing needed anymore, since every edge is already a
 // genuine parent-child connection from the growth process. Weight (micro
-// vs. medium brightness) comes from tree depth: shallow edges near the
-// trunks render brighter/thicker, deep edges near the cortex render as
-// faint fine filaments -- a real hierarchy, not a uniform mesh.
-
+// vs. medium brightness) comes from real HEIGHT above the pedestal, not
+// growth-step depth -- depth ranges up to ~480 on a long unbranched
+// chain, which saturated this to "faint" almost immediately and left
+// only a handful of edges near the very root reading as trunk-weight;
+// height directly matches the visual intent regardless of how many
+// growth steps a chain took to get somewhere.
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js";
+import { heightFrac } from "./BrainFormationEngine.js";
 import { lineVertexShader, lineFragmentShader } from "./NeuralShader.js";
 
 export class NeuralNetwork {
@@ -35,10 +38,9 @@ export class NeuralNetwork {
       const dur = Math.max(durations[e.a], durations[e.b]);
       lineStarts.push(start, start);
       lineDurations.push(dur, dur);
-      // shallow depth (near the trunks) = heavier weight/brighter; deep
-      // (near the cortex) = fine, faint filaments
-      const depthFrac = Math.min(1, b.depth / 24);
-      const weight = THREE.MathUtils.lerp(1.1, 0.28, depthFrac);
+      // low (near the trunks) = heavier weight/brighter; high (near the
+      // cortex) = fine, faint filaments
+      const weight = THREE.MathUtils.lerp(1.1, 0.28, heightFrac(b.pos.y));
       lineWeights.push(weight, weight);
     }
 
