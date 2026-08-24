@@ -219,9 +219,23 @@ function buildAttractionPoints(hemisphereCount, brainstemCount) {
 const INFLUENCE_RADIUS = 0.17;
 const KILL_RADIUS = 0.05;
 const STEP_SIZE = 0.03;
-const MAX_ITER = 480;
-const MAX_ACTIVE_TIPS = 260;
-const BRANCH_PROB = 0.045;
+// Cut alongside MAX_ACTIVE_TIPS/BRANCH_PROB below -- a handful of tips
+// can otherwise keep growing for the full 480 steps even with fewer
+// concurrent branches, which was still producing more total nodes than
+// intended. 260 steps * 0.03 step size = up to 7.8 units of possible
+// travel, still comfortably more than the ~2-unit brain needs to fill.
+const MAX_ITER = 260;
+// Real feedback: "too much conjoint veins/branches... nothing clear."
+// This was never a brightness or thickness problem -- 260 concurrent
+// growing tips, all splitting and filling space at once, produces a
+// genuinely tangled structure no amount of color/size tuning can make
+// read as legible. The reference has a handful of clearly distinguishable
+// branches, not thousands of competing hairline threads. Cut hard: far
+// fewer concurrent branches, and each one splits less often, so growth
+// stays as a modest number of real, traceable trunks and branches instead
+// of proliferating into a dense thicket.
+const MAX_ACTIVE_TIPS = 42;
+const BRANCH_PROB = 0.03;
 
 function cellKey(cx, cy, cz) {
   return cx + "_" + cy + "_" + cz;
@@ -387,7 +401,12 @@ function growBranchingTree(attractors) {
 }
 
 export class BrainFormationEngine {
-  constructor({ hemisphereCount = 5200, brainstemCount = 1100, ambientCount = 480 } = {}) {
+  // Counts cut roughly in half again alongside MAX_ACTIVE_TIPS/BRANCH_PROB
+  // above -- fewer attraction points means less for growth to fill, which
+  // compounds with fewer concurrent branches into a genuinely sparser,
+  // more legible structure instead of just redistributing the same
+  // density across fewer branches.
+  constructor({ hemisphereCount = 2200, brainstemCount = 450, ambientCount = 180 } = {}) {
     this.hemisphereCount = hemisphereCount;
     this.brainstemCount = brainstemCount;
     this.ambientCount = ambientCount;
