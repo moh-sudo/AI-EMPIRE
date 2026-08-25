@@ -23,10 +23,15 @@
     position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
     color: #6b7280; font: 13px ui-monospace, monospace; letter-spacing: 0.08em; pointer-events: none;
   }
+  #hint {
+    position: fixed; left: 16px; bottom: 14px;
+    color: #4b5563; font: 11px ui-monospace, monospace; letter-spacing: 0.06em; pointer-events: none;
+  }
 </style>
 
 <div id="anatomy-container"></div>
 <div id="loading">LOADING REAL ANATOMY...</div>
+<div id="hint">drag to rotate &middot; scroll to zoom</div>
 
 <script type="module">
   import { AnatomyCheck } from '/web/js/AnatomyCheck.js';

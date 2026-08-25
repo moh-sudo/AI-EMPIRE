@@ -13,6 +13,7 @@
 
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js";
 import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/loaders/GLTFLoader.js";
+import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/controls/OrbitControls.js";
 
 const LEFT_URL = "/web/assets/brain/lh_NIH3D.glb";
 const RIGHT_URL = "/web/assets/brain/rh_NIH3D.glb";
@@ -46,6 +47,17 @@ export class AnatomyCheck {
     this.renderer.setSize(w, h);
     this.renderer.setClearColor(0x05070a, 1); // plain dark background, per spec
     container.appendChild(this.renderer.domElement);
+
+    // Real feedback: the fixed default angle wasn't the right one, and
+    // guessing front-vs-back purely from unlabeled MRI axis data isn't
+    // reliable without seeing the actual render. Orbit controls let
+    // Mohamed rotate/zoom to the correct view directly instead of more
+    // blind camera-angle guesses -- drag to rotate, scroll to zoom.
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.08;
+    this.controls.minDistance = 50;
+    this.controls.maxDistance = 2000;
 
     // Neutral clay-style lighting so the real anatomy (curvature, sulci/
     // gyri, hemisphere separation) reads clearly by shading alone -- no
@@ -184,11 +196,18 @@ export class AnatomyCheck {
     const hFit = vFit / this.camera.aspect;
     const distance = Math.max(vFit, hFit) * 1.35;
 
-    // Reference framing: slightly above center, looking down and
-    // slightly toward the front -- the same primary 3/4 angle the
-    // supplied reference uses, not a flat front-on view.
-    this.camera.position.set(distance * 0.18, distance * 0.32, distance * 0.92);
-    this.camera.lookAt(0, size.y * 0.05, 0);
+    // Only set position/target on the FIRST real frame -- on later
+    // resizes, only refit aspect/projection so orbit controls aren't
+    // fighting a camera reset every time the window changes size. The
+    // exact starting angle matters less now that it's adjustable live
+    // (drag to rotate) rather than the only way to see the brain.
+    if (!this._initialFramed) {
+      this.camera.position.set(distance * 0.18, distance * 0.32, distance * 0.92);
+      const target = new THREE.Vector3(0, size.y * 0.05, 0);
+      this.camera.lookAt(target);
+      this.controls.target.copy(target);
+      this._initialFramed = true;
+    }
     this.camera.updateProjectionMatrix();
   }
 
@@ -201,6 +220,7 @@ export class AnatomyCheck {
 
   _loop() {
     requestAnimationFrame(this._loop);
+    this.controls.update(); // required each frame for enableDamping
     this.renderer.render(this.scene, this.camera);
   }
 }
