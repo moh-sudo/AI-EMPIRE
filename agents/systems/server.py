@@ -47,7 +47,7 @@ async def no_cache_for_brain_assets(request, call_next):
     Mohamed's own reloads always see current code -- fine to pay the
     cost of skipping the disk cache for a low-traffic personal tool."""
     response = await call_next(request)
-    if request.url.path == "/brain" or request.url.path.startswith("/web/"):
+    if request.url.path in ("/brain", "/brain-anatomy") or request.url.path.startswith("/web/"):
         response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -60,6 +60,17 @@ def brain_page():
     http://127.0.0.1:8007/brain in a browser tab and it's a genuinely
     persistent local page, not a one-off artifact link."""
     return FileResponse(WEB_DIR / "empire_brain_idle.html")
+
+
+@app.get("/brain-anatomy")
+def brain_anatomy_page():
+    """Milestone 1 of the Empire Brain rebuild (2026-08-25): validates
+    the real anatomical base mesh (NIH 3D / UCSF-UCSD glassbrain public
+    domain hemisphere data, see interfaces/web/assets/brain/) alone,
+    with nothing else -- no particles, color, pedestal, or dashboard UI.
+    Deliberately a separate page from /brain, not a replacement, until
+    Mohamed approves this foundation."""
+    return FileResponse(WEB_DIR / "brain_anatomy.html")
 
 
 @app.get("/empire-status")

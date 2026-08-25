@@ -1,0 +1,42 @@
+<title>Empire Brain — Anatomy Check</title>
+<meta name="description" content="Milestone 1: real MRI-derived brain hemisphere geometry only, no particles/color/UI yet.">
+
+<!-- Import map must land inside the implicit <head> (title/meta/style keep
+     the parser there; a <div> would close it) -- a real bug found and
+     fixed the hard way building the other Empire Brain page. Needed
+     because GLTFLoader.js imports THREE internally via the bare
+     specifier "three". -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/"
+  }
+}
+</script>
+
+<style>
+  html, body { margin: 0; padding: 0; background: #05070a; overflow: hidden; height: 100%; }
+  #anatomy-container { position: fixed; inset: 0; }
+  #anatomy-container canvas { display: block; }
+  #loading {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #6b7280; font: 13px ui-monospace, monospace; letter-spacing: 0.08em; pointer-events: none;
+  }
+</style>
+
+<div id="anatomy-container"></div>
+<div id="loading">LOADING REAL ANATOMY...</div>
+
+<script type="module">
+  import { AnatomyCheck } from '/web/js/AnatomyCheck.js';
+  var container = document.getElementById('anatomy-container');
+  window.anatomyCheck = new AnatomyCheck(container);
+  // hide the loading label once both hemispheres have actually loaded
+  var check = setInterval(function () {
+    if (window.anatomyCheck._loaded.left && window.anatomyCheck._loaded.right) {
+      document.getElementById('loading').style.display = 'none';
+      clearInterval(check);
+    }
+  }, 150);
+</script>
