@@ -62,15 +62,29 @@ export class AnatomyCheck {
     // Neutral clay-style lighting so the real anatomy (curvature, sulci/
     // gyri, hemisphere separation) reads clearly by shading alone -- no
     // color scheme yet, that's explicitly deferred to a later milestone.
-    this.scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-    const key = new THREE.DirectionalLight(0xffffff, 1.1);
-    key.position.set(1, 1.2, 1.5);
+    // Real bug found from TWO live screenshots showing a flat, uniform
+    // gray silhouette with no visible shading gradient across the dome's
+    // curved surface: the key light sat at (1,1.2,1.5), nearly the SAME
+    // direction as the default camera position (dominated by +Z in both
+    // cases, ~24 degrees apart) -- the classic "on-axis flash photo"
+    // problem, where every visible surface point faces the light almost
+    // as directly as it faces the camera, erasing shadow contrast across
+    // the bulk of the surface (only a thin rim near the silhouette edge
+    // showed any falloff, which is why the earlier brightness-range check
+    // still measured SOME variance while the render still looked flat).
+    // Compounded by ambient light strong enough to wash out what little
+    // directional falloff existed. Fixed by moving the key light strongly
+    // OFF-AXIS from the camera (mostly to the side, not behind it) and
+    // cutting ambient well below the key light's strength.
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.22));
+    const key = new THREE.DirectionalLight(0xffffff, 1.6);
+    key.position.set(2.4, 1.1, 0.2);
     this.scene.add(key);
-    const fill = new THREE.DirectionalLight(0x8fb3ff, 0.35);
-    fill.position.set(-1.2, 0.4, -1);
+    const fill = new THREE.DirectionalLight(0x8fb3ff, 0.28);
+    fill.position.set(-1.6, -0.3, 0.9);
     this.scene.add(fill);
-    const rim = new THREE.DirectionalLight(0xffffff, 0.4);
-    rim.position.set(0, 1, -2);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.5);
+    rim.position.set(-0.4, 1.2, -2);
     this.scene.add(rim);
 
     this.brainGroup = new THREE.Group();
@@ -122,6 +136,18 @@ export class AnatomyCheck {
             child.material = this._neutralMaterial;
             child.castShadow = false;
             child.receiveShadow = false;
+            // Real bug found from a live screenshot: sampling a full
+            // horizontal line across the rendered dome returned the exact
+            // same brightness value at nearly every point (173, flat) --
+            // moving the key light off-axis (the first, wrong diagnosis)
+            // changed nothing, which only makes sense if the geometry has
+            // no usable per-vertex normals for MeshStandardMaterial's
+            // lighting to vary by. This MRI-segmented mesh likely doesn't
+            // carry a NORMAL attribute (or a good one) in its glTF
+            // primitives. Force-computing real normals from the actual
+            // triangle geometry fixes shading regardless of what the
+            // source file did or didn't include.
+            child.geometry.computeVertexNormals();
           }
         });
         this._loaded[side] = root;
