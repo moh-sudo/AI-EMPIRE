@@ -228,7 +228,14 @@ export class AnatomyCheck {
     // exact starting angle matters less now that it's adjustable live
     // (drag to rotate) rather than the only way to see the brain.
     if (!this._initialFramed) {
-      this.camera.position.set(distance * 0.18, distance * 0.32, distance * 0.92);
+      // Elevation cut roughly in half (0.32 -> 0.16) -- real feedback
+      // that the default read as looking down into the fissure from
+      // nearly overhead rather than a natural facing-forward view. Some
+      // elevation is unavoidable (seeing both hemispheres AND the gap
+      // between them at once inherently requires looking somewhat from
+      // above -- a pure side view only shows one hemisphere), but the
+      // previous angle leaned much further into that than necessary.
+      this.camera.position.set(distance * 0.14, distance * 0.16, distance * 0.96);
       const target = new THREE.Vector3(0, size.y * 0.05, 0);
       this.camera.lookAt(target);
       this.controls.target.copy(target);
